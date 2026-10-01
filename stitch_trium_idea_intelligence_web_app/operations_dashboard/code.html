@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"secondary-fixed-dim":"#c8c6c5","primary-fixed-dim":"#ffb787","on-primary-container":"#fffbff","on-secondary-fixed":"#1b1c1c","surface-container-low":"#f5f4ef","error":"#ba1a1a","on-background":"#1b1c19","tertiary-container":"#877158","on-secondary-fixed-variant":"#474746","on-secondary-container":"#656464","on-tertiary-container":"#fffbff","surface-variant":"#e4e2de","on-secondary":"#ffffff","inverse-primary":"#ffb787","secondary-container":"#e4e2e1","surface-tint":"#964900","on-surface-variant":"#574336","surface":"#fbf9f4","secondary-fixed":"#e4e2e1","on-primary-fixed":"#311300","secondary":"#5f5e5e","on-primary-fixed-variant":"#723600","outline":"#8a7264","on-tertiary":"#ffffff","inverse-surface":"#30312e","surface-container":"#efeee9","outline-variant":"#dec1b0","inverse-on-surface":"#f2f1ec","on-primary":"#ffffff","primary":"#924700","background":"#fbf9f4","tertiary":"#6d5841","surface-bright":"#fbf9f4","on-surface":"#1b1c19","on-error":"#ffffff","on-tertiary-fixed":"#271907","surface-container-high":"#e9e8e3","surface-container-highest":"#e4e2de","primary-fixed":"#ffdcc7","error-container":"#ffdad6","primary-container":"#b85b00","on-error-container":"#93000a","tertiary-fixed-dim":"#ddc2a5","surface-container-lowest":"#ffffff","tertiary-fixed":"#fadec0","on-tertiary-fixed-variant":"#56432e","surface-dim":"#dbdad5"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"gutter-lg":"2rem","space-2xl":"3rem","space-xs":"0.25rem","gutter":"1.5rem","space-xl":"2rem","gutter-sm":"1rem","margin-lg":"3rem","margin-sm":"1rem","space-2xs":"0.125rem","space-lg":"1.5rem","space-sm":"0.5rem","margin":"2rem","space-md":"1rem"},fontFamily:{"headline-md":["Work Sans"],"headline-sm":["Work Sans"],"label-sm":["Work Sans"],"headline-lg":["Work Sans"],"title-lg":["Work Sans"],"body-sm":["Work Sans"],"body-md":["Work Sans"],"numeric-metric":["Work Sans"],"display-hero":["Work Sans"],"body-lg":["Work Sans"],"label-caps":["Work Sans"],"display-hero-mobile":["Work Sans"]},fontSize:{"headline-md":["24px",{lineHeight:"32px",letterSpacing:"-0.01em",fontWeight:"600"}],"headline-sm":["20px",{lineHeight:"28px",fontWeight:"600"}],"label-sm":["12px",{lineHeight:"16px",fontWeight:"500"}],"headline-lg":["32px",{lineHeight:"40px",letterSpacing:"-0.015em",fontWeight:"700"}],"title-lg":["18px",{lineHeight:"26px",fontWeight:"600"}],"body-sm":["13px",{lineHeight:"18px",fontWeight:"400"}],"body-md":["14px",{lineHeight:"20px",fontWeight:"400"}],"numeric-metric":["28px",{lineHeight:"34px",letterSpacing:"-0.02em",fontWeight:"700"}],"display-hero":["48px",{lineHeight:"56px",letterSpacing:"-0.02em",fontWeight:"700"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],"label-caps":["11px",{lineHeight:"16px",letterSpacing:"0.08em",fontWeight:"700"}],"display-hero-mobile":["34px",{lineHeight:"42px",letterSpacing:"-0.015em",fontWeight:"700"}]}}}};</script></head><body class="bg-background font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-[260px] bg-surface-container-low z-50 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex flex-col"><div class="h-16 px-space-md flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm overflow-hidden"><img alt="Trium Idea Intelligence Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1W9tZyv2rygbj4hwWjBWRjjMvksp_c8uKTylPElkvnHzJqd2E4g4V0FW4OdeQ6pbqXN19TKYQ5VEDN9OEDc641RLdEoz-ev-hcTXbswtDIFY0_R-5C8gU3VsEuuDafRMAKEge8LHs0VWI71VGfKtXPBwzs-COrPgeei-e9hph5_6xjwOHfgUJc7omaAIof0YvOeZrGTmqC0hdzvOfPBcVus7nNk-L4JmAnUmlArg9DvC27Cs_87e4euMHsr"/><div class="flex flex-col"><span class="font-headline-sm text-title-lg text-on-surface tracking-tight leading-tight">Trium</span><span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Idea Intelligence</span></div></div><button aria-label="Collapse sidebar" class="text-on-surface-variant hover:text-on-surface p-space-2xs rounded-lg hover:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-[18px]">menu_open</span></button></div><div class="px-space-md py-space-xs"><span class="font-label-caps text-label-caps uppercase text-on-surface-variant tracking-wider">Platform Modules</span></div><nav class="px-space-sm flex flex-col gap-1" data-active-classes="bg-[#FFF4E8] text-primary font-semibold"><a aria-current="page" class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg transition-all group bg-[#FFF4E8] text-primary font-semibold" data-path="dashboard" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">dashboard</span></div><span class="flex-1">Dashboard</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="start" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">explore</span></div><span class="flex-1">Start</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="benchmarks" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">balance</span></div><span class="flex-1">Benchmarks</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="idea-screening" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">checklist</span></div><span class="flex-1">Idea Screening</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="scouting" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">radar</span></div><span class="flex-1">Scouting</span><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF4E8] text-primary font-label-caps text-label-caps uppercase"><span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>Live</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="idea-pipeline" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">view_kanban</span></div><span class="flex-1">Idea Pipeline</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="reports" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">description</span></div><span class="flex-1">Reports</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="sources" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">database</span></div><span class="flex-1">Sources</span></a><div class="my-space-xs h-[1px] bg-surface-container-highest mx-space-sm"></div><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="developer" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">terminal</span></div><span class="flex-1">Developer</span><span class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-caps text-[10px] uppercase font-bold tracking-wider">Admin</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all font-body-md text-body-md group" data-path="settings" href="#"><div class="w-7 h-7 rounded-md flex items-center justify-center transition-colors group-hover:bg-surface-container-highest"><span class="material-symbols-outlined text-[18px]">settings</span></div><span class="flex-1">Settings</span></a></nav></div><div class="p-space-md"><div class="rounded-xl bg-surface-container p-space-sm flex flex-col gap-space-2xs"><div class="flex items-center justify-between"><span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Frontier Fund I</span><span class="w-2 h-2 rounded-full bg-[#1E824C]"></span></div><span class="font-title-lg text-body-md font-semibold text-on-surface">Lagos Hub Active</span><span class="font-body-sm text-[11px] text-on-surface-variant">Q2 Studio Deployment</span></div></div></aside><div class="pl-[260px]"><header class="fixed top-0 left-[260px] right-0 h-16 bg-surface/85 backdrop-blur-xl z-40 shadow-[0_1px_8px_rgba(0,0,0,0.04)] px-space-lg flex items-center justify-between gap-space-md"><div class="flex items-center flex-1 max-w-xl"><div class="w-full flex items-center gap-space-xs px-space-sm py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[18px]">search</span><input class="w-full bg-transparent border-none text-body-md text-on-surface placeholder:text-secondary focus:outline-none" placeholder="Search ideas, benchmarks, policy, sources... (Ctrl+K)" type="text"/><kbd class="hidden sm:inline-block px-1.5 py-0.5 rounded bg-surface-container text-[11px] font-label-caps text-on-surface-variant">⌘K</kbd></div></div><div class="flex items-center gap-space-md"><div class="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-[#EAF5EE] text-[#1E824C] font-label-caps text-label-caps"><span class="w-1.5 h-1.5 rounded-full bg-[#1E824C]"></span>Free-tier quota: 78% healthy</div><div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF4E8] text-primary font-label-caps text-label-caps"><span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>Scouts running: 2</div><button aria-label="Notifications" class="relative p-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary"></span></button><button aria-label="Toggle dark mode" class="p-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-[20px]">dark_mode</span></button><div class="flex items-center gap-space-sm pl-space-xs"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1J2Iy7vAWu8g6vCjX5KsIYQ7_UpC7TjFyHQf3HOOU_dgCT7PKsXsKPqBInSBLGVl9o09rqIyQ7szNuRQl6Wde6L_xkXfv3F279dnEf_38vRo-OGSlX-AQpZ-Y7ORWg9-Yqm1dxL9w-OS1XsiaO0m9_DrFWD86GILZdL4O9vxxTdg_5s4KFIAYMexq9LW1qLl4YeXIdE3dphDPI9IfKrET3QuAZt40AxNh7v-KvHy_0IsSkjVE7M2ycA"/><div class="hidden xl:flex flex-col leading-tight"><span class="font-title-lg text-body-sm font-semibold text-on-surface">Babajide A.</span><span class="font-label-caps text-[10px] text-primary uppercase font-bold tracking-wider">Lead Partner</span></div><span class="material-symbols-outlined text-[16px] text-on-surface-variant hidden xl:block">expand_more</span></div></div></header><main class="relative pt-16 bg-background min-h-screen"><div class="w-full px-space-lg py-space-md"><div class="flex flex-col w-full">
+<!-- Top Operational Banner & Meta Bar -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md mb-space-lg">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-caps text-label-caps text-primary tracking-widest uppercase">Lagos Studio Venture Engine</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">Production Node 04</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Good morning, Babajide</h1>
+<p class="font-body-md text-body-md text-secondary mt-0.5">Thursday, 24 October 2024 · Real-time frontier thesis &amp; pipeline surveillance</p>
+</div>
+<!-- Time Range Selector & Global Actions -->
+<div class="flex items-center gap-space-sm self-start md:self-auto">
+<div class="flex items-center bg-surface-container rounded-lg p-1">
+<button class="px-3 py-1 rounded-md text-body-sm font-label-sm text-secondary hover:text-on-surface transition-all">Today</button>
+<button class="px-3 py-1 rounded-md text-body-sm font-label-sm text-secondary hover:text-on-surface transition-all">7 Days</button>
+<button class="px-3 py-1 rounded-md text-body-sm font-label-sm bg-surface-container-lowest text-on-surface shadow-sm font-semibold transition-all">Last 30 Days</button>
+<button class="px-3 py-1 rounded-md text-body-sm font-label-sm text-secondary hover:text-on-surface transition-all">Quarter</button>
+</div>
+<button class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-on-primary font-body-sm font-semibold shadow-sm hover:bg-primary-container transition-all" id="trigger-cycle-btn">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+<span>Run Intake Sweep</span>
+</button>
+</div>
+</div>
+<!-- Dismissible Onboarding Checklist -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low shadow-sm p-space-md mb-space-lg transition-all duration-300" id="checklist-card">
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
+<div class="flex items-start gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">verified</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-title-lg text-title-lg text-on-surface">Studio Setup Checklist</span>
+<span class="px-2 py-0.5 rounded-full bg-primary/15 text-primary font-label-caps text-label-caps uppercase">3 of 4 Connected</span>
+</div>
+<p class="font-body-sm text-body-sm text-secondary mt-0.5">Initialize automated frontier deal screening pipeline for Venture Hub deployment.</p>
+</div>
+</div>
+<div class="flex items-center gap-space-md">
+<!-- Progress Bar Indicator -->
+<div class="w-48 hidden sm:flex flex-col gap-1">
+<div class="flex justify-between text-label-caps font-label-caps text-on-surface-variant">
+<span>Progress</span>
+<span class="font-semibold text-primary">75%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 75%"></div>
+</div>
+</div>
+<button aria-label="Dismiss checklist" class="p-1 rounded-lg text-secondary hover:text-on-surface hover:bg-surface-container transition-colors" onclick="document.getElementById('checklist-card').classList.add('hidden')">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+</div>
+<!-- Micro Task Steps -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-sm mt-space-md">
+<div class="p-space-sm rounded-lg bg-surface-container-lowest shadow-sm flex items-start gap-2.5">
+<span class="material-symbols-outlined text-[18px] text-tertiary-container mt-0.5">check_circle</span>
+<div class="min-w-0">
+<span class="block font-body-sm text-body-sm font-semibold text-on-surface truncate">Vanta Portfolio DB</span>
+<span class="block font-label-caps text-[11px] text-secondary">Synced 14 mins ago</span>
+</div>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-lowest shadow-sm flex items-start gap-2.5">
+<span class="material-symbols-outlined text-[18px] text-tertiary-container mt-0.5">check_circle</span>
+<div class="min-w-0">
+<span class="block font-body-sm text-body-sm font-semibold text-on-surface truncate">Primary LLM Orchestration</span>
+<span class="block font-label-caps text-[11px] text-secondary">Gemini 1.5 Pro active</span>
+</div>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-lowest shadow-sm flex items-start gap-2.5">
+<span class="material-symbols-outlined text-[18px] text-tertiary-container mt-0.5">check_circle</span>
+<div class="min-w-0">
+<span class="block font-body-sm text-body-sm font-semibold text-on-surface truncate">Curated Sources Engine</span>
+<span class="block font-label-caps text-[11px] text-secondary">42 active scrapers</span>
+</div>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-lowest shadow-sm flex items-start justify-between gap-2.5">
+<div class="flex items-start gap-2.5 min-w-0">
+<span class="material-symbols-outlined text-[18px] text-primary mt-0.5">pending</span>
+<div class="min-w-0">
+<span class="block font-body-sm text-body-sm font-semibold text-on-surface truncate">Set DIT Email Recipients</span>
+<span class="block font-label-caps text-[11px] text-primary truncate">Pending team alias</span>
+</div>
+</div>
+<a class="text-primary hover:text-primary-container shrink-0 mt-0.5" href="#">
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Operational Stat Counters (5 Columns) -->
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-space-sm mb-space-lg">
+<!-- Stat 1 -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between text-secondary">
+<span class="font-label-caps text-label-caps uppercase">Benchmarks</span>
+<span class="material-symbols-outlined text-[18px]">balance</span>
+</div>
+<div class="mt-3">
+<div class="flex items-baseline gap-2">
+<span class="font-numeric-metric text-numeric-metric text-on-surface">28</span>
+<span class="font-label-caps text-label-caps text-tertiary-container font-semibold">+14%</span>
+</div>
+<span class="font-body-sm text-[12px] text-secondary">vs previous month</span>
+</div>
+</div>
+<!-- Stat 2 -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between text-secondary">
+<span class="font-label-caps text-label-caps uppercase">Screened Ideas</span>
+<span class="material-symbols-outlined text-[18px]">filter_alt</span>
+</div>
+<div class="mt-3">
+<div class="flex items-baseline gap-2">
+<span class="font-numeric-metric text-numeric-metric text-on-surface">142</span>
+<span class="font-label-caps text-label-caps text-tertiary-container font-semibold">91.2%</span>
+</div>
+<span class="font-body-sm text-[12px] text-secondary">Automated dedupe rate</span>
+</div>
+</div>
+<!-- Stat 3 -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between text-secondary">
+<span class="font-label-caps text-label-caps uppercase">Emailed to DIT</span>
+<span class="material-symbols-outlined text-[18px]">send</span>
+</div>
+<div class="mt-3">
+<div class="flex items-baseline gap-2">
+<span class="font-numeric-metric text-numeric-metric text-primary">19</span>
+<span class="font-label-caps text-label-caps text-primary font-semibold">Ready</span>
+</div>
+<span class="font-body-sm text-[12px] text-secondary">High viability pass</span>
+</div>
+</div>
+<!-- Stat 4 -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between text-secondary">
+<span class="font-label-caps text-label-caps uppercase">Ideas Parked</span>
+<span class="material-symbols-outlined text-[18px]">archive</span>
+</div>
+<div class="mt-3">
+<div class="flex items-baseline gap-2">
+<span class="font-numeric-metric text-numeric-metric text-on-surface">84</span>
+<span class="font-label-caps text-label-caps text-secondary font-semibold">Backlog</span>
+</div>
+<span class="font-body-sm text-[12px] text-secondary">Below criterion threshold</span>
+</div>
+</div>
+<!-- Stat 5 -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between col-span-2 md:col-span-1">
+<div class="flex items-center justify-between text-secondary">
+<span class="font-label-caps text-label-caps uppercase">Active Scouts</span>
+<span class="material-symbols-outlined text-[18px]">radar</span>
+</div>
+<div class="mt-3">
+<div class="flex items-baseline gap-2">
+<span class="font-numeric-metric text-numeric-metric text-on-surface">02</span>
+<span class="font-label-caps text-label-caps text-tertiary-container font-semibold">100%</span>
+</div>
+<span class="font-body-sm text-[12px] text-secondary">Scout engine uptime</span>
+</div>
+</div>
+</div>
+<!-- Live Monitors Spotlight Strip -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-space-md mb-space-lg">
+<!-- Monitor Card 1: Emerging-Market Tech Scout -->
+<div class="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm relative overflow-hidden flex flex-col justify-between gap-space-md">
+<div class="absolute -right-8 -top-8 w-36 h-36 bg-primary/5 rounded-full blur-2xl pointer-events-none"></div>
+<div>
+<div class="flex items-start justify-between gap-2">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-caps text-label-caps text-primary uppercase font-bold">Frontier Radar Module A</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-label-caps text-[11px] text-secondary">Global Tier A &amp; B</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Emerging-Market Tech Scout</h2>
+</div>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container text-primary font-label-caps text-label-caps uppercase">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            Running
+          </span>
+</div>
+<!-- Metric Grid -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-space-sm mt-space-md p-space-sm rounded-lg bg-surface-container-low">
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Scout Uptime</span>
+<span class="font-title-lg text-body-md font-semibold text-on-surface">99.8%</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Healthy Feeds</span>
+<span class="font-title-lg text-body-md font-semibold text-on-surface">38/40</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Items Scanned</span>
+<span class="font-title-lg text-body-md font-semibold text-on-surface">1,842</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">New Candidates</span>
+<span class="font-title-lg text-body-md font-semibold text-primary">+6 Today</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2 text-secondary text-body-sm font-body-sm">
+<span class="material-symbols-outlined text-[16px] text-primary">sensors</span>
+<span>Targeting SEA, LATAM &amp; Sub-Saharan hubs</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-lg text-secondary hover:text-on-surface hover:bg-surface-container font-body-sm text-body-sm font-semibold transition-all">Pause Scout</button>
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-variant text-on-surface font-body-sm text-body-sm font-semibold flex items-center gap-1 transition-all">
+<span>Open Monitor</span>
+<span class="material-symbols-outlined text-[14px]">arrow_outward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Monitor Card 2: Nigerian Policy & Regulatory Scout -->
+<div class="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm relative overflow-hidden flex flex-col justify-between gap-space-md">
+<div class="absolute -right-8 -top-8 w-36 h-36 bg-tertiary-container/10 rounded-full blur-2xl pointer-events-none"></div>
+<div>
+<div class="flex items-start justify-between gap-2">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-caps text-label-caps text-tertiary uppercase font-bold">Policy &amp; Compliance Lens</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-label-caps text-[11px] text-secondary">CBN · SEC · FCCPC · Gazette</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Nigerian Regulatory Intelligence</h2>
+</div>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container text-tertiary font-label-caps text-label-caps uppercase">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+            Running
+          </span>
+</div>
+<!-- Metric Grid -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-space-sm mt-space-md p-space-sm rounded-lg bg-surface-container-low">
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Scout Uptime</span>
+<span class="font-title-lg text-body-md font-semibold text-on-surface">100%</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Active Watchlists</span>
+<span class="font-title-lg text-body-md font-semibold text-on-surface">18/18</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Legal Items</span>
+<span class="font-title-lg text-body-md font-semibold text-on-surface">412</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-secondary uppercase">Policy Alerts</span>
+<span class="font-title-lg text-body-md font-semibold text-primary">2 Active</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2 text-secondary text-body-sm font-body-sm">
+<span class="material-symbols-outlined text-[16px] text-tertiary">gavel</span>
+<span>Latest: CBN Non-Bank FX Remittance Circular</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-lg text-secondary hover:text-on-surface hover:bg-surface-container font-body-sm text-body-sm font-semibold transition-all">Pause Scout</button>
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-variant text-on-surface font-body-sm text-body-sm font-semibold flex items-center gap-1 transition-all">
+<span>Open Monitor</span>
+<span class="material-symbols-outlined text-[14px]">arrow_outward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Venture Funnel Progression Strip -->
+<div class="rounded-xl bg-surface-container-lowest shadow-sm p-space-md mb-space-lg">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">timeline</span>
+<h3 class="font-title-lg text-title-lg text-on-surface">Intake Conversion Velocity (30d)</h3>
+</div>
+<span class="font-label-caps text-label-caps text-secondary">Total throughput: 2,254 ingested artifacts</span>
+</div>
+<!-- Funnel Visualization Nodes -->
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+<!-- Step 1 -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col justify-between">
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">Stage 01</span>
+<span class="block font-title-lg text-body-md font-semibold text-on-surface mt-0.5">Items Scanned</span>
+</div>
+<div class="mt-3 flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">2,254</span>
+<span class="font-label-caps text-[10px] text-secondary">100%</span>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col justify-between">
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">Stage 02</span>
+<span class="block font-title-lg text-body-md font-semibold text-on-surface mt-0.5">Ideas Extracted</span>
+</div>
+<div class="mt-3 flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">142</span>
+<span class="font-label-caps text-[10px] text-primary font-semibold">6.3%</span>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col justify-between">
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">Stage 03</span>
+<span class="block font-title-lg text-body-md font-semibold text-on-surface mt-0.5">Not in Vanta</span>
+</div>
+<div class="mt-3 flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">118</span>
+<span class="font-label-caps text-[10px] text-primary font-semibold">83.1%</span>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col justify-between">
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">Stage 04</span>
+<span class="block font-title-lg text-body-md font-semibold text-on-surface mt-0.5">Viability ≥ Med</span>
+</div>
+<div class="mt-3 flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">54</span>
+<span class="font-label-caps text-[10px] text-primary font-semibold">45.7%</span>
+</div>
+</div>
+<!-- Step 5 -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col justify-between">
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">Stage 05</span>
+<span class="block font-title-lg text-body-md font-semibold text-on-surface mt-0.5">Passed Grading</span>
+</div>
+<div class="mt-3 flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">19</span>
+<span class="font-label-caps text-[10px] text-primary font-semibold">35.2%</span>
+</div>
+</div>
+<!-- Step 6 -->
+<div class="p-3 rounded-lg bg-surface-container-high flex flex-col justify-between">
+<div>
+<span class="font-label-caps text-[10px] text-primary uppercase font-bold">Terminal</span>
+<span class="block font-title-lg text-body-md font-semibold text-on-surface mt-0.5">Emailed to DIT</span>
+</div>
+<div class="mt-3 flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-primary">19</span>
+<span class="font-label-caps text-[10px] text-primary font-bold">100%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Primary Asymmetric Two-Column Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+<!-- Left / Center Panel (65% -> 8 of 12 cols) -->
+<div class="lg:col-span-8 flex flex-col gap-space-lg">
+<!-- Charts & Visual Analytics Section -->
+<div class="rounded-xl bg-surface-container-lowest shadow-sm p-space-lg">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm mb-space-md">
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Intelligence Intake &amp; Benchmark Velocity</h3>
+<p class="font-body-sm text-body-sm text-secondary">Historical conversion trajectories and automated scoring distributions</p>
+</div>
+<!-- Segmented Tab Control -->
+<div class="flex items-center bg-surface-container p-1 rounded-lg self-start sm:self-auto">
+<button class="chart-tab-btn px-3 py-1 text-body-sm rounded-md font-semibold bg-surface-container-lowest text-on-surface shadow-sm transition-all" id="tab-intake" onclick="switchChartTab('intake')">Intake Volume</button>
+<button class="chart-tab-btn px-3 py-1 text-body-sm rounded-md font-medium text-secondary hover:text-on-surface transition-all" id="tab-distribution" onclick="switchChartTab('distribution')">Grade Split</button>
+<button class="chart-tab-btn px-3 py-1 text-body-sm rounded-md font-medium text-secondary hover:text-on-surface transition-all" id="tab-latency" onclick="switchChartTab('latency')">Bench Velocity</button>
+</div>
+</div>
+<!-- Dynamic Chart Display Container -->
+<div class="w-full" id="chart-panel-intake">
+<div class="flex items-end justify-between gap-2 h-44 pt-4 px-2">
+<!-- Inline SVG Bar Chart -->
+<svg class="w-full h-full" fill="none" viewbox="0 0 600 160">
+<!-- Grid lines -->
+<line class="text-surface-container-highest" stroke="currentColor" stroke-dasharray="3 3" x1="0" x2="600" y1="30" y2="30"></line>
+<line class="text-surface-container-highest" stroke="currentColor" stroke-dasharray="3 3" x1="0" x2="600" y1="80" y2="80"></line>
+<line class="text-surface-container-highest" stroke="currentColor" stroke-dasharray="3 3" x1="0" x2="600" y1="130" y2="130"></line>
+<!-- Daily Intake Bars (Weeks 1 to 4) -->
+<rect class="fill-surface-container-high" height="60" rx="3" width="14" x="20" y="70"></rect>
+<rect class="fill-primary" height="30" rx="3" width="14" x="20" y="100"></rect>
+<rect class="fill-surface-container-high" height="75" rx="3" width="14" x="60" y="55"></rect>
+<rect class="fill-primary" height="42" rx="3" width="14" x="60" y="88"></rect>
+<rect class="fill-surface-container-high" height="90" rx="3" width="14" x="100" y="40"></rect>
+<rect class="fill-primary" height="48" rx="3" width="14" x="100" y="82"></rect>
+<rect class="fill-surface-container-high" height="65" rx="3" width="14" x="140" y="65"></rect>
+<rect class="fill-primary" height="35" rx="3" width="14" x="140" y="95"></rect>
+<rect class="fill-surface-container-high" height="100" rx="3" width="14" x="180" y="30"></rect>
+<rect class="fill-primary" height="60" rx="3" width="14" x="180" y="70"></rect>
+<rect class="fill-surface-container-high" height="85" rx="3" width="14" x="220" y="45"></rect>
+<rect class="fill-primary" height="50" rx="3" width="14" x="220" y="80"></rect>
+<rect class="fill-surface-container-high" height="80" rx="3" width="14" x="260" y="50"></rect>
+<rect class="fill-primary" height="40" rx="3" width="14" x="260" y="90"></rect>
+<rect class="fill-surface-container-high" height="110" rx="3" width="14" x="300" y="20"></rect>
+<rect class="fill-primary" height="70" rx="3" width="14" x="300" y="60"></rect>
+<rect class="fill-surface-container-high" height="95" rx="3" width="14" x="340" y="35"></rect>
+<rect class="fill-primary" height="55" rx="3" width="14" x="340" y="75"></rect>
+<rect class="fill-surface-container-high" height="105" rx="3" width="14" x="380" y="25"></rect>
+<rect class="fill-primary" height="65" rx="3" width="14" x="380" y="65"></rect>
+<rect class="fill-surface-container-high" height="115" rx="3" width="14" x="420" y="15"></rect>
+<rect class="fill-primary" height="75" rx="3" width="14" x="420" y="55"></rect>
+<rect class="fill-surface-container-high" height="90" rx="3" width="14" x="460" y="40"></rect>
+<rect class="fill-primary" height="52" rx="3" width="14" x="460" y="78"></rect>
+<rect class="fill-surface-container-high" height="100" rx="3" width="14" x="500" y="30"></rect>
+<rect class="fill-primary" height="65" rx="3" width="14" x="500" y="65"></rect>
+<rect class="fill-surface-container-high" height="120" rx="3" width="14" x="540" y="10"></rect>
+<rect class="fill-primary" height="90" rx="3" width="14" x="540" y="40"></rect>
+</svg>
+</div>
+<div class="flex items-center justify-between text-label-caps font-label-caps text-secondary px-2 mt-2">
+<span>Oct 01</span>
+<span>Oct 07</span>
+<span>Oct 14</span>
+<span>Oct 21</span>
+<span>Today (Oct 24)</span>
+</div>
+</div>
+<div class="hidden w-full py-2" id="chart-panel-distribution">
+<div class="flex flex-col sm:flex-row items-center justify-around gap-6">
+<!-- Inline SVG Donut Chart -->
+<div class="relative w-36 h-36">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<!-- Background Circle -->
+<circle class="text-surface-container" cx="18" cy="18" fill="none" r="15.915" stroke="currentColor" stroke-width="3.5"></circle>
+<!-- Grade A Segment (32%) -->
+<circle class="text-primary" cx="18" cy="18" fill="none" r="15.915" stroke="currentColor" stroke-dasharray="32, 100" stroke-dashoffset="0" stroke-width="3.5"></circle>
+<!-- Grade B+ / B Segment (48%) -->
+<circle class="text-tertiary-container" cx="18" cy="18" fill="none" r="15.915" stroke="currentColor" stroke-dasharray="48, 100" stroke-dashoffset="-32" stroke-width="3.5"></circle>
+<!-- Grade C / Reject (20%) -->
+<circle class="text-secondary" cx="18" cy="18" fill="none" r="15.915" stroke="currentColor" stroke-dasharray="20, 100" stroke-dashoffset="-80" stroke-width="3.5"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-numeric-metric text-headline-sm text-on-surface">142</span>
+<span class="font-label-caps text-[10px] text-secondary">Graded</span>
+</div>
+</div>
+<!-- Legend Details -->
+<div class="flex flex-col gap-2 min-w-0">
+<div class="flex items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface">Grade A (Studio High Viability)</span>
+</div>
+<span class="font-body-sm text-body-sm font-bold text-on-surface">45 (32%)</span>
+</div>
+<div class="flex items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-tertiary-container"></span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface">Grade B / B+ (Review Queue)</span>
+</div>
+<span class="font-body-sm text-body-sm font-bold text-on-surface">68 (48%)</span>
+</div>
+<div class="flex items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface">Grade C (Parked Candidates)</span>
+</div>
+<span class="font-body-sm text-body-sm font-bold text-on-surface">29 (20%)</span>
+</div>
+</div>
+</div>
+</div>
+<div class="hidden w-full py-4" id="chart-panel-latency">
+<div class="flex items-center justify-between mb-2">
+<div>
+<span class="font-label-caps text-label-caps text-secondary uppercase">Average Synthesis Latency</span>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface">3.2 minutes</span>
+<span class="font-label-caps text-[11px] text-tertiary-container font-semibold">⚡ -42s from target</span>
+</div>
+</div>
+<span class="font-label-caps text-[11px] text-secondary">Auto Benchmark Engine v2.4</span>
+</div>
+<!-- Sparkline representation -->
+<svg class="w-full h-24" fill="none" viewbox="0 0 500 80">
+<path class="text-primary" d="M 0,60 Q 50,45 100,52 T 200,35 T 300,42 T 400,20 T 500,18" fill="none" stroke="currentColor" stroke-width="2.5"></path>
+<path class="text-primary/10" d="M 0,60 Q 50,45 100,52 T 200,35 T 300,42 T 400,20 T 500,18 L 500,80 L 0,80 Z" fill="currentColor"></path>
+<circle class="fill-primary" cx="500" cy="18" r="4"></circle>
+</svg>
+</div>
+<!-- Visual Context Footnote -->
+<div class="mt-4 pt-3 flex items-center justify-between text-body-sm text-secondary">
+<div class="flex items-center gap-4">
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-surface-container-high"></span> Ingested Candidates</span>
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-primary"></span> Qualified for Studio</span>
+</div>
+<span class="font-label-caps text-[11px] text-on-surface-variant font-semibold">Sync: Active 12s ago</span>
+</div>
+</div>
+<!-- Latest Shortlist Table (Columns: Idea Name, Origin Market, Viability, Grade, Status, Action) -->
+<div class="rounded-xl bg-surface-container-lowest shadow-sm p-space-lg">
+<div class="flex items-center justify-between mb-space-md">
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Priority Shortlist Candidates</h3>
+<p class="font-body-sm text-body-sm text-secondary">Screened concepts meeting Nigeria Studio viability thresholds</p>
+</div>
+<button class="flex items-center gap-1 text-primary hover:text-primary-container font-body-sm font-semibold">
+<span>Full Pipeline</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<!-- Responsive Table Container -->
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-low text-secondary text-label-caps font-label-caps uppercase tracking-wider">
+<th class="py-2.5 px-3 rounded-l-lg">Idea Candidate</th>
+<th class="py-2.5 px-3">Origin Market</th>
+<th class="py-2.5 px-3">Viability</th>
+<th class="py-2.5 px-3">Grade</th>
+<th class="py-2.5 px-3">Status</th>
+<th class="py-2.5 px-3 rounded-r-lg text-right">Action</th>
+</tr>
+</thead>
+<tbody class="text-body-sm font-body-md">
+<!-- Candidate Row 1 -->
+<tr class="hover:bg-surface-container-low/60 transition-colors">
+<td class="py-3 px-3">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 font-bold font-label-sm">
+                      SA
+                    </div>
+<div>
+<span class="font-semibold text-on-surface block">SolarAgro Cool-Storage</span>
+<span class="text-[12px] text-secondary">Pay-per-crate refrigeration for post-harvest</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 font-body-sm text-on-surface">
+<span class="text-base">🇮🇳</span> India (EcoZen model)
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-tertiary-container font-label-caps text-label-caps uppercase font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span> High
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-bold font-label-caps text-[12px]">A</span>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 text-[12px] text-primary font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span> Queued for DIT
+                  </span>
+</td>
+<td class="py-3 px-3 text-right">
+<button aria-label="Open Idea Drawer" class="p-1 rounded text-secondary hover:text-on-surface hover:bg-surface-container transition-colors" onclick="openIdeaDrawer('SolarAgro Cool-Storage', 'A', 'India (EcoZen)', 'High viability model adapted for Kano and Benue agricultural hubs.')">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Candidate Row 2 -->
+<tr class="hover:bg-surface-container-low/60 transition-colors">
+<td class="py-3 px-3">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-surface-container text-secondary flex items-center justify-center shrink-0 font-bold font-label-sm">
+                      NX
+                    </div>
+<div>
+<span class="font-semibold text-on-surface block">NairaFX Embedded Treasury</span>
+<span class="text-[12px] text-secondary">Multi-tier FX hedging API for FMCG importers</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 font-body-sm text-on-surface">
+<span class="text-base">🇧🇷</span> Brazil (EBANX thesis)
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-tertiary-container font-label-caps text-label-caps uppercase font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span> High
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface font-bold font-label-caps text-[12px]">B+</span>
+</td>
+<td class="py-3 px-3">
+<span class="text-[12px] text-secondary font-medium">Reviewing CBN circular</span>
+</td>
+<td class="py-3 px-3 text-right">
+<button aria-label="Open Idea Drawer" class="p-1 rounded text-secondary hover:text-on-surface hover:bg-surface-container transition-colors" onclick="openIdeaDrawer('NairaFX Embedded Treasury', 'B+', 'Brazil (EBANX)', 'Regulatory clearance pending under new CBN guidelines.')">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Candidate Row 3 -->
+<tr class="hover:bg-surface-container-low/60 transition-colors">
+<td class="py-3 px-3">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-tertiary-container/10 text-tertiary-container flex items-center justify-center shrink-0 font-bold font-label-sm">
+                      FL
+                    </div>
+<div>
+<span class="font-semibold text-on-surface block">FleetLease Micro-EV</span>
+<span class="text-[12px] text-secondary">Two-wheeler battery swap infrastructure</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 font-body-sm text-on-surface">
+<span class="text-base">🇰🇪</span> Kenya (BasiGo / Roam)
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-secondary font-label-caps text-label-caps uppercase font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> Medium
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface font-bold font-label-caps text-[12px]">B</span>
+</td>
+<td class="py-3 px-3">
+<span class="text-[12px] text-secondary font-medium">CapEx benchmarking</span>
+</td>
+<td class="py-3 px-3 text-right">
+<button aria-label="Open Idea Drawer" class="p-1 rounded text-secondary hover:text-on-surface hover:bg-surface-container transition-colors" onclick="openIdeaDrawer('FleetLease Micro-EV', 'B', 'Kenya (Roam)', 'Heavy capital outlay analysis required for Lagos mainland deployment.')">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Candidate Row 4 -->
+<tr class="hover:bg-surface-container-low/60 transition-colors">
+<td class="py-3 px-3">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 font-bold font-label-sm">
+                      MD
+                    </div>
+<div>
+<span class="font-semibold text-on-surface block">MedSupply AI Demand Aggregator</span>
+<span class="text-[12px] text-secondary">Tier 3 pharmacy bulk ordering portal</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 font-body-sm text-on-surface">
+<span class="text-base">🇪🇬</span> Egypt (MaxAB thesis)
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-tertiary-container font-label-caps text-label-caps uppercase font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span> High
+                  </span>
+</td>
+<td class="py-3 px-3">
+<span class="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-bold font-label-caps text-[12px]">A</span>
+</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center gap-1 text-[12px] text-primary font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span> Queued for DIT
+                  </span>
+</td>
+<td class="py-3 px-3 text-right">
+<button aria-label="Open Idea Drawer" class="p-1 rounded text-secondary hover:text-on-surface hover:bg-surface-container transition-colors" onclick="openIdeaDrawer('MedSupply AI Demand', 'A', 'Egypt (MaxAB)', 'High margin potential with 240 neighborhood pharmacies pre-registered.')">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-sm text-label-caps font-label-caps text-secondary">
+<span>Showing 4 of 19 graded candidates</span>
+<div class="flex items-center gap-2">
+<button class="px-2 py-1 rounded bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors">Prev</button>
+<span class="text-on-surface font-semibold">1</span>
+<button class="px-2 py-1 rounded bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors">Next</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Panel (35% -> 4 of 12 cols) -->
+<div class="lg:col-span-4 flex flex-col gap-space-lg">
+<!-- System Health & Quota Meters -->
+<div class="rounded-xl bg-surface-container-lowest shadow-sm p-space-md">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">monitor_heart</span>
+<h3 class="font-title-lg text-title-lg text-on-surface">System Quotas &amp; Latency</h3>
+</div>
+<span class="w-2 h-2 rounded-full bg-tertiary-container"></span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<!-- Vanta DB API -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface">Vanta Portfolio API</span>
+<span class="font-label-caps text-[11px] text-tertiary-container font-bold">14ms latency</span>
+</div>
+<div class="flex items-center justify-between text-label-caps font-label-caps text-secondary">
+<span>Sync status</span>
+<span>Fully Consistent</span>
+</div>
+</div>
+<!-- LLM Token Quota -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface">LLM Token Quota</span>
+<span class="font-label-caps text-[11px] text-primary font-bold">62% used</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 62%"></div>
+</div>
+<div class="flex items-center justify-between text-label-caps font-label-caps text-secondary">
+<span>Free tier allocation</span>
+<span>310k / 500k tokens</span>
+</div>
+</div>
+<!-- Google Search / Scraper Quota -->
+<div class="p-3 rounded-lg bg-surface-container-low flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface">Scraper / Search Quota</span>
+<span class="font-label-caps text-[11px] text-tertiary-container font-bold">41% used</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-tertiary-container rounded-full" style="width: 41%"></div>
+</div>
+<div class="flex items-center justify-between text-label-caps font-label-caps text-secondary">
+<span>Monthly limit</span>
+<span>4,120 / 10,000 queries</span>
+</div>
+</div>
+<!-- SendGrid Engine -->
+<div class="p-3 rounded-lg bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-tertiary-container">mark_email_read</span>
+<div>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block">SendGrid Relay</span>
+<span class="text-label-caps text-[10px] text-secondary">DIT weekly digests</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-tertiary-container font-label-caps text-[10px] font-bold uppercase">Operational</span>
+</div>
+</div>
+</div>
+<!-- Activity Feed Timeline (Venture Operations Stream) -->
+<div class="rounded-xl bg-surface-container-lowest shadow-sm p-space-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">hub</span>
+<h3 class="font-title-lg text-title-lg text-on-surface">Telemetry Activity</h3>
+</div>
+<span class="font-label-caps text-label-caps text-secondary">Live Stream</span>
+</div>
+<!-- Vertical Timeline Stream -->
+<div class="relative pl-6 flex flex-col gap-space-md">
+<!-- Continuous Vertical Line -->
+<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-surface-container-highest"></div>
+<!-- Timeline Event 1 -->
+<div class="relative">
+<span class="absolute -left-[23px] top-1 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-surface-container-lowest"></span>
+<div>
+<span class="font-label-caps text-[10px] text-primary uppercase font-bold">12m ago · Emerging Scout</span>
+<p class="font-body-sm text-body-sm font-semibold text-on-surface mt-0.5">Finished cycle 148</p>
+<p class="font-body-sm text-[12px] text-secondary">Discovered 4 new high-viability candidates from SEA agritech repositories.</p>
+</div>
+</div>
+<!-- Timeline Event 2 -->
+<div class="relative">
+<span class="absolute -left-[23px] top-1 w-3.5 h-3.5 rounded-full bg-tertiary-container ring-4 ring-surface-container-lowest"></span>
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">34m ago · Benchmark Suite</span>
+<p class="font-body-sm text-body-sm font-semibold text-on-surface mt-0.5">Benchmark complete</p>
+<p class="font-body-sm text-[12px] text-secondary">'Solar-as-a-service for agro-processing' finalized in 2.8m. Grade: A.</p>
+</div>
+</div>
+<!-- Timeline Event 3 (Warning) -->
+<div class="relative">
+<span class="absolute -left-[23px] top-1 w-3.5 h-3.5 rounded-full bg-error ring-4 ring-surface-container-lowest"></span>
+<div>
+<span class="font-label-caps text-[10px] text-error uppercase font-bold">1h ago · Scraper Warning</span>
+<p class="font-body-sm text-body-sm font-semibold text-on-surface mt-0.5">Rate limit reached: Source 4</p>
+<p class="font-body-sm text-[12px] text-secondary">East Africa Tech feed reached threshold; switched to fallback proxy automatically.</p>
+</div>
+</div>
+<!-- Timeline Event 4 -->
+<div class="relative">
+<span class="absolute -left-[23px] top-1 w-3.5 h-3.5 rounded-full bg-secondary ring-4 ring-surface-container-lowest"></span>
+<div>
+<span class="font-label-caps text-[10px] text-secondary uppercase">2h ago · DIT Dispatch</span>
+<p class="font-body-sm text-body-sm font-semibold text-on-surface mt-0.5">Digest dispatched</p>
+<p class="font-body-sm text-[12px] text-secondary">Automated dossier containing 6 Grade-A ideas sent to dit-deals@trium.vc.</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-space-md py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-body-sm text-body-sm font-semibold transition-colors flex items-center justify-center gap-1">
+<span>View All System Logs</span>
+<span class="material-symbols-outlined text-[16px]">arrow_right_alt</span>
+</button>
+</div>
+<!-- Frontier Focus Card -->
+<div class="rounded-xl bg-surface-container-low p-space-md">
+<span class="font-label-caps text-label-caps text-secondary uppercase">Studio Intelligence Directive</span>
+<h4 class="font-title-lg text-body-md font-semibold text-on-surface mt-1">Nigeria Energy &amp; Logistics Focus</h4>
+<p class="font-body-sm text-body-sm text-secondary mt-1">Special priority weighting (+15% score) is applied to all distributed energy and cold-chain business models through Q4 2024.</p>
+</div>
+</div>
+</div>
+<!-- Quick Action Candidate Drawer / Modal (Hidden by Default) -->
+<div class="fixed inset-0 z-50 bg-inverse-surface/40 backdrop-blur-sm hidden items-center justify-center p-4" id="idea-drawer">
+<div class="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-xl p-space-lg flex flex-col gap-space-md">
+<div class="flex items-start justify-between">
+<div>
+<span class="font-label-caps text-label-caps text-primary uppercase">Candidate Analysis Dossier</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mt-0.5" id="drawer-idea-title">SolarAgro Cool-Storage</h3>
+</div>
+<button class="p-1 rounded-lg text-secondary hover:text-on-surface hover:bg-surface-container transition-colors" onclick="closeIdeaDrawer()">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<div class="flex flex-col gap-3 py-2">
+<div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-low">
+<span class="font-body-sm text-secondary">Origin Model</span>
+<span class="font-body-sm font-semibold text-on-surface" id="drawer-idea-origin">India (EcoZen)</span>
+</div>
+<div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-low">
+<span class="font-body-sm text-secondary">Studio Grade</span>
+<span class="px-2 py-0.5 rounded bg-primary/20 text-primary font-bold font-label-caps text-[12px]" id="drawer-idea-grade">A</span>
+</div>
+<p class="font-body-sm text-body-sm text-secondary leading-relaxed" id="drawer-idea-desc">
+          High viability model adapted for Kano and Benue agricultural hubs with pay-per-crate farmer cooperatives.
+        </p>
+</div>
+<div class="flex items-center gap-space-sm pt-2">
+<button class="flex-1 py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-body-sm font-semibold transition-colors" onclick="closeIdeaDrawer()">
+          Close
+        </button>
+<button class="flex-1 py-2 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-body-sm font-semibold transition-colors flex items-center justify-center gap-1" onclick="dispatchToDIT()">
+<span class="material-symbols-outlined text-[16px]">send</span>
+<span>Push to DIT</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Interactive Logic -->
+<script>
+    function switchChartTab(tabKey) {
+      // Manage tab buttons
+      const buttons = document.querySelectorAll('.chart-tab-btn');
+      buttons.forEach(btn => {
+        btn.classList.remove('bg-surface-container-lowest', 'text-on-surface', 'shadow-sm', 'font-semibold');
+        btn.classList.add('text-secondary', 'font-medium');
+      });
+
+      const activeBtn = document.getElementById('tab-' + tabKey);
+      if (activeBtn) {
+        activeBtn.classList.remove('text-secondary', 'font-medium');
+        activeBtn.classList.add('bg-surface-container-lowest', 'text-on-surface', 'shadow-sm', 'font-semibold');
+      }
+
+      // Hide all panels
+      document.getElementById('chart-panel-intake').classList.add('hidden');
+      document.getElementById('chart-panel-distribution').classList.add('hidden');
+      document.getElementById('chart-panel-latency').classList.add('hidden');
+
+      // Show selected panel
+      const targetPanel = document.getElementById('chart-panel-' + tabKey);
+      if (targetPanel) {
+        targetPanel.classList.remove('hidden');
+      }
+    }
+
+    function openIdeaDrawer(title, grade, origin, desc) {
+      document.getElementById('drawer-idea-title').innerText = title;
+      document.getElementById('drawer-idea-grade').innerText = grade;
+      document.getElementById('drawer-idea-origin').innerText = origin;
+      document.getElementById('drawer-idea-desc').innerText = desc;
+      const drawer = document.getElementById('idea-drawer');
+      drawer.classList.remove('hidden');
+      drawer.classList.add('flex');
+    }
+
+    function closeIdeaDrawer() {
+      const drawer = document.getElementById('idea-drawer');
+      drawer.classList.add('hidden');
+      drawer.classList.remove('flex');
+    }
+
+    function dispatchToDIT() {
+      alert('Candidate pushed directly to DIT team review queue.');
+      closeIdeaDrawer();
+    }
+
+    document.getElementById('trigger-cycle-btn').addEventListener('click', function() {
+      const btn = this;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">refresh</span><span>Scanning Feeds...</span>';
+      setTimeout(() => {
+        btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">done</span><span>Scrape Cycle Completed</span>';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+        }, 2000);
+      }, 1400);
+    });
+  </script>
+</div></div></main><div class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"><div class="pointer-events-auto p-4 rounded-xl bg-surface-container-lowest shadow-[0_12px_32px_-8px_rgba(224,112,0,0.12)] flex items-center gap-3"><span class="material-symbols-outlined text-primary text-[20px]">sync_saved_locally</span><div class="flex flex-col"><span class="font-body-sm text-body-sm font-semibold text-on-surface">Workspace synchronized</span><span class="font-body-sm text-[12px] text-on-surface-variant">Lagos Venture Engine online</span></div><button class="text-on-surface-variant hover:text-on-surface ml-2"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></div></body></html>

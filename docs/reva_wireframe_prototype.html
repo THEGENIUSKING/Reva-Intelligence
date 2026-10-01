@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reva — Global Benchmarking & Venture Viability Prototype</title>
+  
+  <!-- Fonts matching Vanta & StyleUI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+
+  <style>
+    :root {
+      /* White and shades */
+      --white: #FFFFFF;
+      --paper: #F6F5F2;       /* Vanta signature warm paper background */
+      --paper-sub: #EFEDE8;   /* Subtle container fill */
+      --card-white: #FFFFFF;  /* Card surface */
+
+      /* Orange and shades (Trium signature brand) */
+      --orange-brand: #FF6A13;
+      --orange-hover: #E65A09;
+      --orange-light: #FFF0E8;
+      --orange-border: #FFD4C2;
+      --orange-glow: rgba(255, 106, 19, 0.15);
+
+      /* Ash and shades (Obsidian & Slate gray) */
+      --ash-sidebar: #141310; /* Deep obsidian charcoal */
+      --ash-header: #1C1A17;
+      --ash-text: #1D1B18;    /* Primary text */
+      --ash-muted: #605E5B;   /* Secondary text */
+      --ash-light: #8C8985;   /* Subtext / icons */
+      --ash-border: #E2DFD9;  /* Crisp border rule */
+      --ash-divider: #ECE9E3; /* Light dividers */
+
+      /* Contextual accents */
+      --green-bg: #ECFDF5;
+      --green-text: #059669;
+      --green-border: #A7F3D0;
+      --amber-bg: #FFFBEB;
+      --amber-text: #D97706;
+      --amber-border: #FDE68A;
+
+      /* Elevation shadows (Vanta soft ambient drop) */
+      --shadow-sm: 0 2px 8px -2px rgba(28, 27, 25, 0.05);
+      --shadow-md: 0 8px 24px -8px rgba(28, 27, 25, 0.08);
+      --shadow-lg: 0 16px 36px -12px rgba(28, 27, 25, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--paper);
+      color: var(--ash-text);
+      line-height: 1.5;
+      font-size: 13px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: var(--card-white);
+      border-bottom: 1px solid var(--ash-border);
+      padding: 0 28px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: var(--orange-brand);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -0.5px;
+      box-shadow: 0 4px 10px var(--orange-glow);
+    }
+
+    .brand-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 19px;
+      color: var(--ash-text);
+      line-height: 1.1;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-sub {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--orange-brand);
+    }
+
+    .nav-tabs {
+      display: flex;
+      background: var(--paper);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--ash-border);
+      gap: 4px;
+    }
+
+    .nav-tab-btn {
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--ash-muted);
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .nav-tab-btn:hover {
+      color: var(--ash-text);
+    }
+
+    .nav-tab-btn.active {
+      background: var(--card-white);
+      color: var(--orange-brand);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-secondary {
+      background: var(--card-white);
+      border: 1px solid var(--ash-border);
+      padding: 7px 14px;
+      border-radius: 8px;
+      color: var(--ash-text);
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--paper);
+      border-color: var(--ash-light);
+    }
+
+    .btn-primary {
+      background: var(--orange-brand);
+      border: 1px solid var(--orange-brand);
+      padding: 7px 16px;
+      border-radius: 8px;
+      color: var(--white);
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 8px var(--orange-glow);
+    }
+
+    .btn-primary:hover {
+      background: var(--orange-hover);
+    }
+
+    /* Sub-header / Stepper */
+    .sub-bar {
+      background: var(--paper-sub);
+      border-bottom: 1px solid var(--ash-border);
+      padding: 10px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ash-light);
+    }
+
+    .step-item.active {
+      color: var(--orange-brand);
+    }
+
+    .step-item.completed {
+      color: var(--ash-text);
+    }
+
+    .step-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--ash-border);
+      color: var(--ash-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .step-item.active .step-dot {
+      background: var(--orange-brand);
+      color: var(--white);
+    }
+
+    .step-item.completed .step-dot {
+      background: var(--ash-text);
+      color: var(--white);
+    }
+
+    .step-sep {
+      color: var(--ash-border);
+      font-size: 14px;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      padding: 24px 28px;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+    }
+
+    /* Left Control Panel (Notio inspired) */
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card-white);
+      border: 1px solid var(--ash-border);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--ash-divider);
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ash-text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title .material-symbols-outlined {
+      font-size: 18px;
+      color: var(--orange-brand);
+    }
+
+    .segment-switch {
+      display: flex;
+      background: var(--paper-sub);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--ash-border);
+      margin-bottom: 14px;
+    }
+
+    .segment-btn {
+      flex: 1;
+      padding: 6px;
+      text-align: center;
+      border: none;
+      background: transparent;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ash-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+
+    .segment-btn.active {
+      background: var(--card-white);
+      color: var(--ash-text);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .input-group {
+      margin-bottom: 14px;
+    }
+
+    .input-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ash-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    textarea.text-input, input.text-input {
+      width: 100%;
+      border: 1px solid var(--ash-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--ash-text);
+      background: var(--card-white);
+      transition: border-color 0.15s;
+      resize: vertical;
+    }
+
+    textarea.text-input:focus, input.text-input:focus {
+      outline: none;
+      border-color: var(--orange-brand);
+      box-shadow: 0 0 0 3px var(--orange-glow);
+    }
+
+    /* Drag & Drop Upload Zone */
+    .dropzone {
+      border: 1.5px dashed var(--ash-border);
+      border-radius: 10px;
+      padding: 24px 16px;
+      text-align: center;
+      background: var(--paper);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dropzone:hover {
+      border-color: var(--orange-brand);
+      background: var(--orange-light);
+    }
+
+    .dropzone .material-symbols-outlined {
+      font-size: 32px;
+      color: var(--orange-brand);
+    }
+
+    .dropzone-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ash-text);
+    }
+
+    .dropzone-sub {
+      font-size: 10px;
+      color: var(--ash-light);
+    }
+
+    /* Region selection pill cloud (Axis style) */
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .filter-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--ash-border);
+      background: var(--paper);
+      color: var(--ash-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.12s ease;
+    }
+
+    .filter-pill:hover {
+      border-color: var(--orange-brand);
+      color: var(--orange-brand);
+    }
+
+    .filter-pill.active {
+      background: var(--orange-light);
+      border-color: var(--orange-border);
+      color: var(--orange-brand);
+    }
+
+    /* Right Main Display Canvas */
+    .display-canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Idea Brief Card (Notio feature card inspired) */
+    .idea-hero-card {
+      background: linear-gradient(135deg, #FFFFFF 0%, #FFF9F5 100%);
+      border: 1px solid var(--orange-border);
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .idea-hero-card::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 120px;
+      height: 120px;
+      background: radial-gradient(circle, var(--orange-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .badge-sector {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--white);
+      border: 1px solid var(--ash-border);
+      color: var(--ash-muted);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .idea-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 24px;
+      color: var(--ash-text);
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .idea-desc {
+      font-size: 12.5px;
+      color: var(--ash-muted);
+      max-width: 850px;
+      line-height: 1.6;
+    }
+
+    .idea-specs-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--orange-border);
+    }
+
+    .spec-item strong {
+      display: block;
+      font-size: 10px;
+      color: var(--ash-light);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .spec-item span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ash-text);
+    }
+
+    /* Bento Grid for Benchmark Metrics & Status (Axis inspired) */
+    .bento-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .stat-card {
+      background: var(--card-white);
+      border: 1px solid var(--ash-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .stat-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ash-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-val {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--ash-text);
+      margin: 4px 0 2px 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--ash-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Comparison Table (Vanta Table styling) */
+    .table-container {
+      background: var(--card-white);
+      border: 1px solid var(--ash-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .table-header-bar {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--ash-border);
+      background: #FAFAF8;
+    }
+
+    .table-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ash-text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    table.benchmark-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    table.benchmark-table th {
+      background: var(--paper-sub);
+      color: var(--ash-muted);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--ash-border);
+    }
+
+    table.benchmark-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--ash-divider);
+      font-size: 12px;
+      vertical-align: middle;
+    }
+
+    table.benchmark-table tr:hover td {
+      background: #FAF9F6;
+    }
+
+    .badge-tier {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .tier-nearby {
+      background: var(--orange-light);
+      color: var(--orange-brand);
+      border: 1px solid var(--orange-border);
+    }
+
+    .tier-emerging {
+      background: #F0FDF4;
+      color: #15803D;
+      border: 1px solid #BBF7D0;
+    }
+
+    .tier-global {
+      background: #EFF6FF;
+      color: #1D4ED8;
+      border: 1px solid #BFDBFE;
+    }
+
+    .source-link {
+      color: var(--orange-brand);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .source-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Apply vs Avoid Section (Split Card) */
+    .apply-avoid-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .blueprint-card {
+      background: var(--card-white);
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .blueprint-card.apply {
+      border: 1.5px solid #86EFAC;
+      background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%);
+    }
+
+    .blueprint-card.avoid {
+      border: 1.5px solid #FECACA;
+      background: linear-gradient(180deg, #FFFFFF 0%, #FEF2F2 100%);
+    }
+
+    .blueprint-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed rgba(0,0,0,0.1);
+    }
+
+    .blueprint-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+
+    .apply .blueprint-title {
+      color: #15803D;
+    }
+
+    .avoid .blueprint-title {
+      color: #B91C1C;
+    }
+
+    .blueprint-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .blueprint-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .bullet-icon {
+      font-size: 16px;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
+
+    .apply .bullet-icon {
+      color: #16A34A;
+    }
+
+    .avoid .bullet-icon {
+      color: #DC2626;
+    }
+
+    /* Export Modal Simulator */
+    .export-bar {
+      background: var(--ash-sidebar);
+      color: var(--white);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow-md);
+    }
+
+    .export-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .export-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .export-sub {
+      font-size: 11px;
+      color: var(--ash-light);
+    }
+
+    .export-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-export {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--white);
+      padding: 7px 12px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.12s;
+    }
+
+    .btn-export:hover {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    .btn-export.active-orange {
+      background: var(--orange-brand);
+      border-color: var(--orange-brand);
+    }
+
+    .btn-export.active-orange:hover {
+      background: var(--orange-hover);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation Bar -->
+  <header>
+    <div class="brand-section">
+      <div class="brand-logo">R</div>
+      <div class="brand-title">
+        <span class="brand-name">Reva Intelligence</span>
+        <span class="brand-sub">Trium Limited Venture Studio</span>
+      </div>
+    </div>
+
+    <!-- Mode Switcher Tabs (Axis style) -->
+    <div class="nav-tabs">
+      <button class="nav-tab-btn active" id="tab-benchmarking" onclick="switchMainTab('benchmarking')">
+        <span class="material-symbols-outlined" style="font-size: 16px;">explore</span>
+        Flow 1: Global Benchmarks
+      </button>
+      <button class="nav-tab-btn" id="tab-viability" onclick="switchMainTab('viability')">
+        <span class="material-symbols-outlined" style="font-size: 16px;">verified</span>
+        Flow 2a: Nigeria Viability
+      </button>
+      <button class="nav-tab-btn" id="tab-scouts" onclick="switchMainTab('scouts')">
+        <span class="material-symbols-outlined" style="font-size: 16px;">sensors</span>
+        Flow 2b/2c: Daily Scouts
+      </button>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn-secondary" onclick="alert('Viewing Vanta Idea Bank connection status: Connected (Read-Only)')">
+        <span class="material-symbols-outlined" style="font-size: 16px; color:#10B981;">cloud_done</span>
+        Vanta Synced
+      </button>
+      <button class="btn-primary" onclick="triggerBenchmarkRun()">
+        <span class="material-symbols-outlined" style="font-size: 16px;">play_arrow</span>
+        Run Benchmark
+      </button>
+    </div>
+  </header>
+
+  <!-- Sub-header Workflow Stepper -->
+  <div class="sub-bar">
+    <div class="stepper">
+      <div class="step-item completed">
+        <div class="step-dot">1</div>
+        Input Concept
+      </div>
+      <span class="step-sep material-symbols-outlined">chevron_right</span>
+      <div class="step-item active">
+        <div class="step-dot">2</div>
+        Emerging & Global Scan
+      </div>
+      <span class="step-sep material-symbols-outlined">chevron_right</span>
+      <div class="step-item">
+        <div class="step-dot">3</div>
+        Nigeria Apply / Avoid
+      </div>
+      <span class="step-sep material-symbols-outlined">chevron_right</span>
+      <div class="step-item">
+        <div class="step-dot">4</div>
+        Multi-Format Export
+      </div>
+    </div>
+
+    <div style="font-size: 11px; color: var(--ash-muted); display:flex; align-items:center; gap:6px;">
+      <span class="material-symbols-outlined" style="font-size: 14px; color: var(--orange-brand);">bolt</span>
+      Zero-Cost Engine (Gemini 2.0 Flash + Tavily Free)
+    </div>
+  </div>
+
+  <!-- Main Grid Workspace -->
+  <main>
+    <!-- Left Configuration & Input Panel -->
+    <aside class="control-panel">
+      <!-- Input Mode Segmented Switch -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">
+            <span class="material-symbols-outlined">input</span>
+            Idea Ingestion Mode
+          </span>
+          <span style="font-size: 10px; color: var(--ash-light); font-weight: 600;">FREE PARSER</span>
+        </div>
+
+        <div class="segment-switch">
+          <button class="segment-btn active" id="seg-prompt" onclick="switchInputMode('prompt')">Text / Prompt</button>
+          <button class="segment-btn" id="seg-upload" onclick="switchInputMode('upload')">Document Upload</button>
+        </div>
+
+        <!-- Prompt Mode Container -->
+        <div id="container-prompt">
+          <div class="input-group">
+            <label class="input-label">Idea Name</label>
+            <input type="text" class="text-input" id="input-idea-name" value="AgroFleet Africa" placeholder="e.g. Solar Mini-grid Credit">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Sector</label>
+            <input type="text" class="text-input" id="input-sector" value="Agri-Logistics & Cold Chain" placeholder="e.g. Fintech, CleanTech">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Core Problem & Concept Mechanics</label>
+            <textarea class="text-input" id="input-desc" rows="4" placeholder="Describe the problem, proposed business model, and mechanics...">Decentralized solar cold storage and refrigerated van-sharing for peri-urban smallholder tomato and vegetable farmers, monetized through pay-as-you-chill micro-fees and bulk off-taker marketplace take rates.</textarea>
+          </div>
+        </div>
+
+        <!-- Upload Mode Container -->
+        <div id="container-upload" style="display: none;">
+          <div class="dropzone" onclick="document.getElementById('file-upload').click()">
+            <span class="material-symbols-outlined">cloud_upload</span>
+            <span class="dropzone-text">Drop Pitch Deck, Memo or PPTX</span>
+            <span class="dropzone-sub">Supports PDF, DOCX, PPTX (Local extraction via pdfplumber)</span>
+            <input type="file" id="file-upload" style="display: none;" onchange="handleFileSelect(event)">
+          </div>
+          <div id="file-preview" style="margin-top: 10px; display:none; font-size:11px; color:var(--orange-brand); font-weight:600;">
+            ✓ File attached: <span id="file-name">deck.pdf</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Scope & Regional Weighting (Axis inspired) -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">
+            <span class="material-symbols-outlined">public</span>
+            Geographic Coverage
+          </span>
+          <span style="font-size: 10px; color: var(--orange-brand); font-weight: 700;">NEARBY FOCUS</span>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Target Regional Tiers (Multi-Select)</label>
+          <div class="pill-group">
+            <div class="filter-pill active" onclick="togglePill(this)">
+              <span class="material-symbols-outlined" style="font-size: 12px;">check</span>
+              Nearby Africa (Ghana, Kenya, Egypt)
+            </div>
+            <div class="filter-pill active" onclick="togglePill(this)">
+              <span class="material-symbols-outlined" style="font-size: 12px;">check</span>
+              Emerging Peers (India, SE Asia, LatAm)
+            </div>
+            <div class="filter-pill" onclick="togglePill(this)">
+              <span class="material-symbols-outlined" style="font-size: 12px;">add</span>
+              Global Leaders (US / Europe)
+            </div>
+          </div>
+        </div>
+
+        <div class="input-group" style="margin-top: 12px;">
+          <label class="input-label">Required Benchmark Data Dimensions</label>
+          <div style="display: flex; flex-direction:column; gap:6px; font-size: 11.5px; color:var(--ash-muted);">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" checked style="accent-color: var(--orange-brand);"> Operational & Financial Numbers (CAC, ARR, Margins)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" checked style="accent-color: var(--orange-brand);"> Business Models & Monetization Mechanisms
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" checked style="accent-color: var(--orange-brand);"> Lessons Learned & Known Failure Post-Mortems
+            </label>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Main Visualization & Output Canvas -->
+    <section class="display-canvas">
+      <!-- Idea Hero Brief (Vanta / Notio inspired) -->
+      <div class="idea-hero-card">
+        <div class="hero-top">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="badge-sector" id="hero-sector">Agri-Logistics & Cold Chain</span>
+            <span class="badge-tier tier-nearby">Nearby African Focus</span>
+          </div>
+          <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="alert('Editing concept parameters...')">
+            <span class="material-symbols-outlined" style="font-size: 14px;">edit</span>
+            Edit Brief
+          </button>
+        </div>
+
+        <h2 class="idea-title" id="hero-name">AgroFleet Africa — Pay-as-You-Chill Solar Cold Chain</h2>
+        <p class="idea-desc" id="hero-desc">
+          Enabling perishable food producers to mitigate 45% post-harvest loss through distributed solar-powered cold hubs at aggregation markets and IoT-tracked refrigerated transit, converting fixed cold storage CapEx into variable operating expenses.
+        </p>
+
+        <div class="idea-specs-grid">
+          <div class="spec-item">
+            <strong>Target Customer</strong>
+            <span id="hero-customer">Peri-urban vegetable farming clusters & food FMCG aggregators</span>
+          </div>
+          <div class="spec-item">
+            <strong>Monetization</strong>
+            <span id="hero-monetization">Daily crate storage fee (₦450/crate) + 8% off-taker take rate</span>
+          </div>
+          <div class="spec-item">
+            <strong>Key Vulnerability</strong>
+            <span>Diesel pump backup cost & off-grid battery replacement cycles</span>
+          </div>
+          <div class="spec-item">
+            <strong>Vanta Idea Bank Check</strong>
+            <span style="color:#059669; display:flex; align-items:center; gap:4px;">
+              <span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>
+              Novel Variant (No exact dupe)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bento Metric Counter Row (Axis inspired) -->
+      <div class="bento-row">
+        <div class="stat-card">
+          <div class="stat-label">
+            Global Benchmarks Found
+            <span class="material-symbols-outlined" style="font-size:14px; color:var(--orange-brand);">analytics</span>
+          </div>
+          <div class="stat-val">12</div>
+          <div class="stat-sub">Across 7 emerging & nearby nations</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-label">
+            Average Take Rate
+            <span class="material-symbols-outlined" style="font-size:14px; color:#10B981;">percent</span>
+          </div>
+          <div class="stat-val">6.8%</div>
+          <div class="stat-sub">Range: 4.5% (India) to 9.2% (Kenya)</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-label">
+            Average Capital Raised
+            <span class="material-symbols-outlined" style="font-size:14px; color:#3B82F6;">payments</span>
+          </div>
+          <div class="stat-val">$4.2M</div>
+          <div class="stat-sub">Median Seed / Series A funding</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-label">
+            Nigeria Viability Gauge
+            <span class="material-symbols-outlined" style="font-size:14px; color:#D97706;">speed</span>
+          </div>
+          <div class="stat-val" style="color:#10B981;">HIGH (78%)</div>
+          <div class="stat-sub">Strongest wedge: FMCG aggregator contracts</div>
+        </div>
+      </div>
+
+      <!-- Comparative Benchmark Data Table -->
+      <div class="table-container">
+        <div class="table-header-bar">
+          <span class="table-title">
+            <span class="material-symbols-outlined">table_chart</span>
+            Empirical Benchmark Findings across Peer Markets
+          </span>
+          <span style="font-size: 11px; color: var(--ash-light);">Sourced via Tavily & Firecrawl • 100% Verified Citations</span>
+        </div>
+
+        <table class="benchmark-table">
+          <thead>
+            <tr>
+              <th>Company / Model</th>
+              <th>Region & Tier</th>
+              <th>Operational Scale & Numbers</th>
+              <th>Monetization Model</th>
+              <th>Lessons Learned / Post-Mortem</th>
+              <th>Source Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong style="color:var(--ash-text); display:block;">InspiraFarms Cooling</strong>
+                <span style="color:var(--ash-light); font-size:10.5px;">Kenya / Rwanda (Founded 2012)</span>
+              </td>
+              <td><span class="badge-tier tier-nearby">Nearby Africa</span></td>
+              <td>
+                <div><strong>$12.5M</strong> funding</div>
+                <div style="color:var(--ash-muted); font-size:11px;">15,000+ MT food stored</div>
+              </td>
+              <td>Lease-to-own modular cold rooms + Energy-as-a-Service (EaaS) contracts</td>
+              <td>Direct sales to small farmers failed; pivoted to contract exporter aggregation centers.</td>
+              <td><a href="#" class="source-link" onclick="event.preventDefault(); alert('Source: Disrupt Africa & TechMoran (Aug 2024)')">Disrupt Africa ↗</a></td>
+            </tr>
+
+            <tr>
+              <td>
+                <strong style="color:var(--ash-text); display:block;">Ecozen Solutions</strong>
+                <span style="color:var(--ash-light); font-size:10.5px;">India (Founded 2010)</span>
+              </td>
+              <td><span class="badge-tier tier-emerging">Emerging Peer</span></td>
+              <td>
+                <div><strong>$30M</strong> Series C (Nuveen)</div>
+                <div style="color:var(--ash-muted); font-size:11px;">100k+ farmers on Ecofrost</div>
+              </td>
+              <td>IoT-enabled solar cold room leasing + lease financing via rural micro-banks</td>
+              <td>Thermal energy storage (ice battery) eliminated lithium battery replacement CapEx.</td>
+              <td><a href="#" class="source-link" onclick="event.preventDefault(); alert('Source: Inc42 & Entrackr Dealflow (Jan 2024)')">Inc42 India ↗</a></td>
+            </tr>
+
+            <tr>
+              <td>
+                <strong style="color:var(--ash-text); display:block;">ColdHubs (Local Parallel)</strong>
+                <span style="color:var(--ash-light); font-size:10.5px;">Nigeria (Founded 2015)</span>
+              </td>
+              <td><span class="badge-tier tier-nearby">Nigeria Benchmark</span></td>
+              <td>
+                <div>54 operational walk-in hubs</div>
+                <div style="color:var(--ash-muted); font-size:11px;">60,000 tons food saved</div>
+              </td>
+              <td>Pay-as-you-store flat fee per 20kg crate/day (cash and POS collected on-site)</td>
+              <td>High reliance on physical market attendants; needs automated remote IoT latching.</td>
+              <td><a href="#" class="source-link" onclick="event.preventDefault(); alert('Source: TechCabal & FAO Case Study (2023)')">TechCabal ↗</a></td>
+            </tr>
+
+            <tr>
+              <td>
+                <strong style="color:var(--ash-text); display:block;">Koolboks</strong>
+                <span style="color:var(--ash-light); font-size:10.5px;">France / West Africa (Founded 2018)</span>
+              </td>
+              <td><span class="badge-tier tier-global">Global / Regional</span></td>
+              <td>
+                <div><strong>$2.5M</strong> Seed funding</div>
+                <div style="color:var(--ash-muted); font-size:11px;">Ice thermal storage tech</div>
+              </td>
+              <td>PAYGO financing integrated with mobile money token unlock</td>
+              <td>Defaulters locked out remotely; solar refrigeration sold as powerbank utility.</td>
+              <td><a href="#" class="source-link" onclick="event.preventDefault(); alert('Source: Rest of World (2024)')">Rest of World ↗</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- The Nigeria Strategic Localization Blueprint (Apply vs Avoid) -->
+      <div class="apply-avoid-grid">
+        <!-- Apply in Nigeria -->
+        <div class="blueprint-card apply">
+          <div class="blueprint-header">
+            <span class="material-symbols-outlined" style="color: #16A34A;">verified_user</span>
+            <span class="blueprint-title">What to Apply When Deploying in Nigeria</span>
+          </div>
+          <ul class="blueprint-list">
+            <li>
+              <span class="material-symbols-outlined bullet-icon">check_circle</span>
+              <div>
+                <strong>Anchor on Off-Takers, Not Subsistence Farmers:</strong> Sign anchor take-or-pay cooling capacity agreements with organized FMCG processors (e.g. Tomato Jos, GB Foods) rather than relying solely on individual farmer micro-payments.
+              </div>
+            </li>
+            <li>
+              <span class="material-symbols-outlined bullet-icon">check_circle</span>
+              <div>
+                <strong>Deploy Thermal Energy (Ice Bank) Storage:</strong> Emulate Ecozen India by utilizing phase-change water/ice thermal storage to achieve 36 hours of cold retention, eliminating expensive lithium battery replacement costs under Nigerian heat.
+              </div>
+            </li>
+            <li>
+              <span class="material-symbols-outlined bullet-icon">check_circle</span>
+              <div>
+                <strong>Offline-First IoT & Agent Verification:</strong> Integrate USSD and Bluetooth token activation for cold room doors so operations continue during frequent rural GSM network dropouts.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Avoid in Nigeria -->
+        <div class="blueprint-card avoid">
+          <div class="blueprint-header">
+            <span class="material-symbols-outlined" style="color: #DC2626;">gpp_bad</span>
+            <span class="blueprint-title">What to Avoid in Nigeria (Costly Pitfalls)</span>
+          </div>
+          <ul class="blueprint-list">
+            <li>
+              <span class="material-symbols-outlined bullet-icon">cancel</span>
+              <div>
+                <strong>Avoid Pure Direct Equipment Sales:</strong> Smallholders cannot afford ₦5M–₦15M cold unit capital outlays. Avoid outright asset sales without asset-finance partners or shared infrastructure models.
+              </div>
+            </li>
+            <li>
+              <span class="material-symbols-outlined bullet-icon">cancel</span>
+              <div>
+                <strong>Avoid Pure Card-Based Recurring Subscriptions:</strong> Card mandates fail at over 40% in Nigeria. Implement automated wallet debits, USSD push notifications, or physical market agent collection.
+              </div>
+            </li>
+            <li>
+              <span class="material-symbols-outlined bullet-icon">cancel</span>
+              <div>
+                <strong>Avoid Unhedged Foreign Equipment Financing:</strong> Equipment imported with dollar-denominated loans will trigger debt distress when Naira depreciates. Source local assembly or hedge via export-linked produce.
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Export & Vanta Bridge Action Bar -->
+      <div class="export-bar">
+        <div class="export-info">
+          <span class="export-title">Export Benchmark Report & Advance to Viability Screening</span>
+          <span class="export-sub">Select preferred document format or push straight into Trium's Vanta pipeline</span>
+        </div>
+
+        <div class="export-actions">
+          <button class="btn-export active-orange" onclick="downloadReport('PDF')">
+            <span class="material-symbols-outlined" style="font-size: 15px;">picture_as_pdf</span>
+            Download PDF
+          </button>
+          <button class="btn-export" onclick="downloadReport('Word')">
+            <span class="material-symbols-outlined" style="font-size: 15px;">description</span>
+            Export Word (.docx)
+          </button>
+          <button class="btn-export" onclick="downloadReport('PPTX')">
+            <span class="material-symbols-outlined" style="font-size: 15px;">slideshow</span>
+            Export PPTX
+          </button>
+          <button class="btn-export" style="background:#059669; border-color:#059669;" onclick="advanceToVanta()">
+            <span class="material-symbols-outlined" style="font-size: 15px;">arrow_forward</span>
+            Advance to Flow 2a Viability
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function switchInputMode(mode) {
+      document.getElementById('seg-prompt').classList.toggle('active', mode === 'prompt');
+      document.getElementById('seg-upload').classList.toggle('active', mode === 'upload');
+      document.getElementById('container-prompt').style.display = mode === 'prompt' ? 'block' : 'none';
+      document.getElementById('container-upload').style.display = mode === 'upload' ? 'block' : 'none';
+    }
+
+    function togglePill(el) {
+      el.classList.toggle('active');
+      const icon = el.querySelector('.material-symbols-outlined');
+      icon.textContent = el.classList.contains('active') ? 'check' : 'add';
+    }
+
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) {
+        document.getElementById('file-preview').style.display = 'block';
+        document.getElementById('file-name').textContent = file.name;
+        alert(`File selected: ${file.name}. Local parser will extract text structure without external API costs.`);
+      }
+    }
+
+    function triggerBenchmarkRun() {
+      const name = document.getElementById('input-idea-name').value;
+      const sector = document.getElementById('input-sector').value;
+      const desc = document.getElementById('input-desc').value;
+
+      document.getElementById('hero-name').textContent = name + " — Global Benchmark Analysis";
+      document.getElementById('hero-sector').textContent = sector;
+      document.getElementById('hero-desc').textContent = desc;
+
+      alert(`Scanning global, emerging and nearby markets for '${name}'...\n\nSearching Tavily & Exa across: Kenya, India, Indonesia, Brazil, and Egypt.`);
+    }
+
+    function downloadReport(format) {
+      alert(`Generating institutional ${format} report with Trium branding, comparison tables, and Apply/Avoid recommendations...`);
+    }
+
+    function advanceToVanta() {
+      alert("Advancing to Flow 2a:\n1. Checking Vanta Idea Bank (0 exact duplicates found).\n2. Testing Nigerian Market Viability (Score: 78/100, High).\n3. Generating 7-Criteria Submission Responses aiming for Grade B to A.\n4. Outputting Vanta assessment scorecard.");
+      switchMainTab('viability');
+    }
+
+    function switchMainTab(tab) {
+      document.querySelectorAll('.nav-tab-btn').forEach(btn => btn.classList.remove('active'));
+      if (tab === 'benchmarking') {
+        document.getElementById('tab-benchmarking').classList.add('active');
+      } else if (tab === 'viability') {
+        document.getElementById('tab-viability').classList.add('active');
+        alert("Flow 2a View: Local Viability & Vanta Ingestion Screen active.");
+      } else if (tab === 'scouts') {
+        document.getElementById('tab-scouts').classList.add('active');
+        alert("Flow 2b/2c View: Autonomous Daily Scouts (Emerging Tech & Nigerian Policy Watch) active.");
+      }
+    }
+  </script>
+</body>
+</html>

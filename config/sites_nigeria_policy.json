@@ -1,0 +1,35 @@
+{
+  "description": "Curated registry of Nigerian regulatory agencies, exposure drafts, official gazettes, legal portals, and policy intelligence trackers for daily scanning (Goal 2c)",
+  "governance": {
+    "sign_off_policy": "Dual sign-off required: Both a Reva Platform Admin and a Vanta Admin must approve new registry additions or updates.",
+    "policy_scope": "Both enacted policies and incoming policy instruments: proposed National Assembly bills, regulator exposure drafts, consultative papers, circulars, and executive orders."
+  },
+  "scraping_rules": {
+    "focus": "New laws, circulars, exposure drafts, consultative papers, executive orders, regulatory frameworks, tariff adjustments, tax policies, compliance mandates",
+    "opportunity_synthesis": "Extract venture opportunities, compliance platforms (RegTech), infrastructure solutions, and market shifts created by each policy"
+  },
+  "government_and_regulatory_sources": [
+    { "name": "Central Bank of Nigeria (CBN) - Circulars & Exposure Drafts", "url": "https://www.cbn.gov.ng/Documents/circulars.asp", "agency": "Central Bank of Nigeria", "sector": "Banking, Payments, FX, Credit & Monetary Policy", "includes_drafts": true },
+    { "name": "Securities and Exchange Commission (SEC Nigeria) - Rules & Public Exposure", "url": "https://sec.gov.ng/rules-codes-circulars", "agency": "Securities and Exchange Commission", "sector": "Capital Markets, Crowdfunding, Digital Assets & Robo-advisory", "includes_drafts": true },
+    { "name": "Nigerian Communications Commission (NCC) - Regulations & Draft Guidelines", "url": "https://www.ncc.gov.ng/regulatory-framework", "agency": "NCC", "sector": "Telecommunications, Spectrum, VAS & MVNO", "includes_drafts": true },
+    { "name": "National Information Technology Development Agency (NITDA)", "url": "https://nitda.gov.ng/guidelines", "agency": "NITDA", "sector": "Data Protection (NDPR), AI Strategy, Cloud Computing, Startup Act", "includes_drafts": true },
+    { "name": "Federal Competition and Consumer Protection Commission (FCCPC)", "url": "https://fccpc.gov.ng/regulations", "agency": "FCCPC", "sector": "Consumer Lending, Data Privacy, Market Anti-Trust & Mergers", "includes_drafts": true },
+    { "name": "Federal Inland Revenue Service (FIRS) - Tax Guidelines & Notices", "url": "https://www.firs.gov.ng/tax-resources", "agency": "FIRS", "sector": "Tax Automation, E-Invoicing, Withholding Tax & VAT Reforms", "includes_drafts": true },
+    { "name": "National Agency for Food and Drug Administration and Control (NAFDAC)", "url": "https://www.nafdac.gov.ng/regulatory-documents", "agency": "NAFDAC", "sector": "HealthTech, Pharma Traceability & Food Security", "includes_drafts": true },
+    { "name": "Nigerian Electricity Regulatory Commission (NERC) - Orders & Consultations", "url": "https://nerc.gov.ng/orders", "agency": "NERC", "sector": "Electricity Act 2023, State Mini-Grids & Renewable IPPs", "includes_drafts": true },
+    { "name": "National Insurance Commission (NAICOM)", "url": "https://naicom.gov.ng/guidelines", "agency": "NAICOM", "sector": "InsurTech, Microinsurance & Digital Distribution", "includes_drafts": true },
+    { "name": "Federal Ministry of Communications, Innovation & Digital Economy", "url": "https://bmg.gov.ng", "agency": "FMCIDE", "sector": "National AI Strategy, Fiber Infrastructure & 3MTT Initiative", "includes_drafts": true },
+    { "name": "Federal Republic of Nigeria Official Gazettes & National Assembly Bills", "url": "https://gazettes.africa/gazettes/ng", "agency": "Federal Government Printing Office", "sector": "Acts of National Assembly, Proposed Legislative Bills, Executive Orders & Treaties", "includes_drafts": true }
+  ],
+  "legal_and_policy_intelligence_sources": [
+    { "name": "BusinessDay - Policy & Legal Watch", "url": "https://businessday.ng/category/legal-business", "focus": "Corporate Governance, Commercial Law, Tax Law & Policy Commentary" },
+    { "name": "Nairametrics - Policy & Regulatory Tracker", "url": "https://nairametrics.com/category/economy/policy", "focus": "Fiscal, Monetary Policy, Sector Reforms & Financial Regulations" },
+    { "name": "Stears - Policy & Economic Intelligence", "url": "https://www.stears.co", "focus": "Macroeconomic Policy, Energy Deregulation & FX Policy" },
+    { "name": "TechCabal - Policy & Regulation Watch", "url": "https://techcabal.com/category/policy", "focus": "African & Nigerian Tech Regulation, Startup Act & Crypto Policy" },
+    { "name": "Lawyard - Legal Insights & Gazettes", "url": "https://lawyard.org", "focus": "Nigerian Judicial Decisions, Regulatory Directives & Legal Tech" },
+    { "name": "The Gravitas Review of Business & Property Law", "url": "https://gravitasreview.com.ng", "focus": "Structured Finance, Energy Transition & IP Law" },
+    { "name": "The Cable - Policy & Governance", "url": "https://www.thecable.ng/category/policy", "focus": "Federal & State Policy Directives, Legislative Bills" },
+    { "name": "Premium Times - Governance & Investigations", "url": "https://www.premiumtimesng.com/category/news/governance-news", "focus": "Public Sector Reforms, Anti-Corruption & Trade Mandates" }
+  ]
+}
+

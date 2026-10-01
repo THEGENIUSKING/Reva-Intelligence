@@ -1,0 +1,574 @@
+import { action, internalAction, internalMutation, internalQuery, mutation, query, env } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import { isApprovedVantaIdentity } from "./access";
+
+const scoutType = v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"));
+const triggerType = v.union(v.literal("scheduled"), v.literal("manual"));
+const runStatus = v.union(v.literal("running"), v.literal("completed"), v.literal("partial"), v.literal("failed"));
+const sourceDoc = v.object({
+  _id: v.id("sourceRegistry"), _creationTime: v.number(), name: v.string(), url: v.string(),
+  feedUrl: v.optional(v.string()), region: v.string(), tier: v.string(), category: v.string(),
+  isActive: v.boolean(), lastScrapedAt: v.optional(v.number()), failureCount: v.number(),
+  signOffRevaAdmin: v.boolean(), signOffVantaAdmin: v.boolean(), approvedAt: v.optional(v.number()),
+});
+const runDoc = v.object({
+  _id: v.id("scoutRuns"), _creationTime: v.number(), scoutType, trigger: triggerType, status: runStatus,
+  startedAt: v.number(), completedAt: v.optional(v.number()), sourcesChecked: v.number(),
+  articlesFound: v.number(), newArticles: v.number(), ideasFound: v.number(), error: v.optional(v.string()),
+});
+const findingDoc = v.object({
+  _id: v.id("scoutFindings"), _creationTime: v.number(), runId: v.id("scoutRuns"), scoutType,
+  articleTitle: v.string(), articleUrl: v.string(), sourceName: v.string(), sourceUrl: v.string(),
+  publishedAt: v.optional(v.string()), ideaName: v.string(), sector: v.string(), summary: v.string(),
+  status: v.union(v.literal("new"), v.literal("reviewed"), v.literal("dismissed")), createdAt: v.number(),
+});
+const articleValidator = v.object({
+  urlHash: v.string(), url: v.string(), title: v.string(), sourceName: v.string(), sourceType: v.string(),
+  contentHash: v.string(), content: v.optional(v.string()), aiSummary: v.optional(v.string()),
+  potentialIdea: v.optional(v.string()), aiSector: v.optional(v.string()),
+  processedAt: v.number(), status: v.string(), publishedDate: v.optional(v.string()),
+});
+const articleDoc = v.object({ _id: v.id("scrapedItems"), _creationTime: v.number(), ...articleValidator.fields });
+
+export const activeSources = internalQuery({
+  args: { scoutType },
+  returns: v.object({ sources: v.array(sourceDoc), usingGlobalFallback: v.boolean() }),
+  handler: async (ctx, args) => {
+    const active: Doc<"sourceRegistry">[] = await ctx.db.query("sourceRegistry")
+      .withIndex("by_isActive", (q) => q.eq("isActive", true)).take(100);
+    if (args.scoutType === "nigeria_policy") {
+      return { sources: active.filter((source) => source.tier === "nigeria_regulator" || source.tier === "nigeria_legal"), usingGlobalFallback: false };
+    }
+    const tierA = active.filter((source) => source.tier === "tier_a_emerging");
+    const tierB = active.filter((source) => source.tier === "tier_b_global");
+    const usingGlobalFallback = tierA.length < 30;
+    return { sources: (usingGlobalFallback ? [...tierA, ...tierB] : tierA).slice(0, 50), usingGlobalFallback };
+  },
+});
+
+export const listRecentRuns = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(runDoc),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    return await ctx.db.query("scoutRuns").withIndex("by_startedAt").order("desc").take(Math.max(1, Math.min(args.limit ?? 20, 50)));
+  },
+});
+
+export const listRecentFindings = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(findingDoc),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    return await ctx.db.query("scoutFindings").withIndex("by_createdAt").order("desc").take(Math.max(1, Math.min(args.limit ?? 40, 100)));
+  },
+});
+
+export const listRecentArticles = query({
+  args: { limit: v.optional(v.number()) }, returns: v.array(articleDoc),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    return await ctx.db.query("scrapedItems").withIndex("by_processedAt").order("desc").take(Math.max(1, Math.min(args.limit ?? 60, 100)));
+  },
+});
+
+export const recoverStaleRuns = mutation({
+  args: { now: v.number() }, returns: v.number(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const cutoff = args.now - 10 * 60 * 1000;
+    const candidates = await ctx.db.query("scoutRuns").withIndex("by_startedAt", (q) => q.lte("startedAt", cutoff)).order("asc").take(50);
+    let recovered = 0;
+    for (const run of candidates) {
+      if (run.status !== "running") continue;
+      await ctx.db.patch(run._id, { status: "failed", completedAt: args.now, error: "This run did not finish updating its status and was closed as failed. Start a new run to retry." });
+      recovered++;
+    }
+    return recovered;
+  },
+});
+
+export const getOverview = query({
+  args: { now: v.number() },
+  returns: v.object({
+    activeEmergingSources: v.number(), activePolicySources: v.number(), registeredSources: v.number(),
+    articlesLastDay: v.number(), ideasLastDay: v.number(), geminiConfigured: v.boolean(),
+    vantaReadApiConfigured: v.boolean(), resendConfigured: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const [sources, recentArticles, recentIdeas]: [Doc<"sourceRegistry">[], Doc<"scrapedItems">[], Doc<"scoutFindings">[]] = await Promise.all([
+      ctx.db.query("sourceRegistry").withIndex("by_name").take(500),
+      ctx.db.query("scrapedItems").withIndex("by_processedAt", (q) => q.gte("processedAt", args.now - 24 * 60 * 60 * 1000)).take(1000),
+      ctx.db.query("scoutFindings").withIndex("by_createdAt", (q) => q.gte("createdAt", args.now - 24 * 60 * 60 * 1000)).take(500),
+    ]);
+    const active = sources.filter((source) => source.isActive);
+    return {
+      activeEmergingSources: active.filter((source) => source.tier === "tier_a_emerging" || source.tier === "tier_b_global").length,
+      activePolicySources: active.filter((source) => source.tier === "nigeria_regulator" || source.tier === "nigeria_legal").length,
+      registeredSources: sources.length,
+      articlesLastDay: recentArticles.length,
+      ideasLastDay: recentIdeas.length,
+      geminiConfigured: Boolean(env.GEMINI_API_KEY),
+      vantaReadApiConfigured: Boolean(env.VANTA_API_KEY && env.VANTA_API_BASE_URL),
+      resendConfigured: Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL),
+    };
+  },
+});
+
+export const runNow = action({
+  args: { scoutType },
+  returns: v.object({ runId: v.id("scoutRuns"), status: runStatus, articlesFound: v.number(), newArticles: v.number(), ideasFound: v.number(), message: v.string() }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    return await executeScout(ctx, args.scoutType, "manual");
+  },
+});
+
+export const analyzeArticle = action({
+  args: { id: v.id("scrapedItems") },
+  returns: v.object({ summary: v.string(), potentialIdea: v.string(), sector: v.string() }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const article: Doc<"scrapedItems"> | null = await ctx.runQuery(internal.scouting.getArticleById, { id: args.id });
+    if (!article) throw new Error("Article was not found");
+    let articleContent = article.content?.trim() || "";
+    if (!articleContent) {
+      try {
+        const url = new URL(article.url);
+        if (url.protocol !== "https:") throw new Error("Only HTTPS article sources can be fetched.");
+        const response = await fetch(url, { headers: { "user-agent": "Reva-Research-Bot/1.0", accept: "text/html,text/plain" }, signal: AbortSignal.timeout(15000) });
+        if (response.ok) articleContent = stripMarkup((await response.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")).slice(0, 7000);
+      } catch { /* Firecrawl fallback below. */ }
+      if (articleContent.length < 200) {
+        try { articleContent = (await firecrawlPage(article.url, false)).markdown.replace(/\s+/g, " ").trim().slice(0, 7000); } catch { /* Report extraction failure below. */ }
+      }
+    }
+    if (articleContent.length < 80) throw new Error("Reva could not extract enough article text. Open the original article and try again later.");
+    const key = env.GEMINI_API_KEY;
+    if (!key) throw new Error("Gemini is not configured for this Reva deployment.");
+    const prompt = `Analyze this public article for a Nigerian venture scouting team. Return only a JSON object with summary (2-4 factual sentences), potentialIdea (one plausible initiative grounded in the text, or an empty string if none), and sector (short label or empty string). Do not invent facts or claim Nigerian fit has been assessed.\n\nTitle: ${article.title}\nSource: ${article.sourceName}\nURL: ${article.url}\nArticle text:\n${articleContent}`;
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
+        response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 1200 } }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!response.ok) throw new Error(`Gemini article analysis returned HTTP ${response.status}. The article is still available below.`);
+    const payload: unknown = await response.json();
+    const text = getGeminiText(payload);
+    const parsed = parseJson(text);
+    if (!parsed || typeof parsed !== "object") throw new Error("Gemini returned an unreadable article analysis.");
+    const result = parsed as Record<string, unknown>;
+    const summary = typeof result.summary === "string" ? result.summary.slice(0, 2500) : "";
+    const potentialIdea = typeof result.potentialIdea === "string" ? result.potentialIdea.slice(0, 1000) : "";
+    const sector = typeof result.sector === "string" ? result.sector.slice(0, 100) : "";
+    if (!summary) throw new Error("Gemini returned no article summary.");
+    await ctx.runMutation(internal.scouting.saveArticleAnalysis, { id: args.id, summary, potentialIdea, sector, content: articleContent });
+    return { summary, potentialIdea, sector };
+  },
+});
+
+export const runEmergingScheduled = internalAction({
+  args: {}, returns: v.null(),
+  handler: async (ctx) => {
+    const selected: { sources: Doc<"sourceRegistry">[]; usingGlobalFallback: boolean } = await ctx.runQuery(internal.scouting.activeSources, { scoutType: "emerging_tech" });
+    if (selected.sources.length) await executeScout(ctx, "emerging_tech", "scheduled");
+    return null;
+  },
+});
+
+export const runPolicyScheduled = internalAction({
+  args: {}, returns: v.null(),
+  handler: async (ctx) => {
+    const selected: { sources: Doc<"sourceRegistry">[]; usingGlobalFallback: boolean } = await ctx.runQuery(internal.scouting.activeSources, { scoutType: "nigeria_policy" });
+    if (selected.sources.length) await executeScout(ctx, "nigeria_policy", "scheduled");
+    return null;
+  },
+});
+
+export const saveArticles = internalMutation({
+  args: { articles: v.array(articleValidator) }, returns: v.number(),
+  handler: async (ctx, args) => {
+    let inserted = 0;
+    for (const article of args.articles) {
+      const exists = await ctx.db.query("scrapedItems").withIndex("by_urlHash", (q) => q.eq("urlHash", article.urlHash)).first();
+      if (exists) {
+        if (!exists.content && article.content) await ctx.db.patch(exists._id, { content: article.content });
+        continue;
+      }
+      await ctx.db.insert("scrapedItems", article);
+      inserted++;
+    }
+    return inserted;
+  },
+});
+
+export const saveFindings = internalMutation({
+  args: { runId: v.id("scoutRuns"), scoutType, findings: v.array(v.object({
+    articleUrl: v.string(), ideaName: v.string(), sector: v.string(), summary: v.string(),
+  })) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let inserted = 0;
+    for (const finding of args.findings) {
+      const articleUrl = new URL(finding.articleUrl).toString();
+      const existing = await ctx.db.query("scoutFindings").withIndex("by_articleUrl", (q) => q.eq("articleUrl", articleUrl)).first();
+      if (existing) continue;
+      const urlHash = await hash(articleUrl);
+      const article = await ctx.db.query("scrapedItems").withIndex("by_urlHash", (q) => q.eq("urlHash", urlHash)).first();
+      await ctx.db.insert("scoutFindings", {
+        runId: args.runId, scoutType: args.scoutType,
+        articleTitle: article?.title || "Source article", articleUrl,
+        sourceName: article?.sourceName || new URL(articleUrl).hostname,
+        sourceUrl: articleUrl, publishedAt: article?.publishedDate,
+        ideaName: finding.ideaName.slice(0, 180), sector: finding.sector.slice(0, 100),
+        summary: finding.summary.slice(0, 3000), status: "new", createdAt: Date.now(),
+      });
+      inserted++;
+    }
+    return inserted;
+  },
+});
+
+export const finishRun = internalMutation({
+  args: {
+    id: v.id("scoutRuns"), status: v.union(v.literal("completed"), v.literal("partial"), v.literal("failed")),
+    sourcesChecked: v.number(), articlesFound: v.number(), newArticles: v.number(), ideasFound: v.number(), error: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { id, ...fields } = args;
+    await ctx.db.patch(id, { ...fields, completedAt: Date.now() });
+    return null;
+  },
+});
+
+export const updateSourceHealth = internalMutation({
+  args: { attempts: v.array(v.object({ id: v.id("sourceRegistry"), succeeded: v.boolean() })) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const attempt of args.attempts) {
+      const source = await ctx.db.get(attempt.id);
+      if (!source) continue;
+      const failureCount = attempt.succeeded ? 0 : source.failureCount + 1;
+      await ctx.db.patch(attempt.id, { lastScrapedAt: Date.now(), failureCount });
+    }
+    return null;
+  },
+});
+
+type ScoutType = "emerging_tech" | "nigeria_policy";
+type RunTrigger = "manual" | "scheduled";
+type ScoutArticle = {
+  urlHash: string; url: string; title: string; sourceName: string; sourceType: string;
+  contentHash: string; processedAt: number; status: string; publishedDate?: string; content: string;
+};
+type ParsedScoutArticle = Pick<ScoutArticle, "url" | "title" | "sourceName" | "content" | "publishedDate">;
+type ScoutRunResult = { runId: Id<"scoutRuns">; status: "completed" | "partial" | "failed"; articlesFound: number; newArticles: number; ideasFound: number; message: string };
+
+async function executeScout(ctx: ActionCtx, type: ScoutType, trigger: RunTrigger): Promise<ScoutRunResult> {
+  const runId: Id<"scoutRuns"> = await ctx.runMutation(internal.scouting.createRun, { scoutType: type, trigger });
+  const errors: string[] = [];
+  try {
+    const selected: { sources: Doc<"sourceRegistry">[]; usingGlobalFallback: boolean } = await ctx.runQuery(internal.scouting.activeSources, { scoutType: type });
+    if (!selected.sources.length) throw new Error("No active, Reva-approved sources are configured for this scout.");
+    const articleBatches: { source: Doc<"sourceRegistry">; articles: ScoutArticle[] }[] = [];
+    const attempts: { id: Id<"sourceRegistry">; succeeded: boolean }[] = [];
+    for (let i = 0; i < selected.sources.length; i += 5) {
+      const batch = selected.sources.slice(i, i + 5);
+      const results = await Promise.all(batch.map(async (source) => {
+        try { return { source, articles: await scrapeSource(source, type) }; }
+        catch { return { source, articles: [], failed: true }; }
+      }));
+      for (const result of results) {
+        const failed = "failed" in result;
+        attempts.push({ id: result.source._id, succeeded: !failed });
+        if (!failed) articleBatches.push(result);
+      }
+    }
+    await ctx.runMutation(internal.scouting.updateSourceHealth, { attempts });
+    const allArticles = articleBatches.flatMap((batch) => batch.articles);
+    const newArticles: number = allArticles.length
+      ? await ctx.runMutation(internal.scouting.saveArticles, { articles: allArticles.slice(0, 500) })
+      : 0;
+    let ideasFound = 0;
+    if (newArticles && env.GEMINI_API_KEY) {
+      const known = await getKnownArticleHashes(ctx, allArticles);
+      const fresh = allArticles.filter((article) => known.has(article.urlHash)).slice(0, 80);
+      try {
+        const extracted = await synthesizeIdeas(fresh, type);
+        ideasFound = await ctx.runMutation(internal.scouting.saveFindings, {
+          runId, scoutType: type,
+          findings: extracted.filter((item) => fresh.some((article) => article.url === item.articleUrl)),
+        });
+        if (extracted.length) {
+          const screened: { processed: number; errors: string[] } = await ctx.runAction(internal.screening.processScoutCandidates, {
+            scoutType: type, candidates: extracted.slice(0, 20),
+          });
+          errors.push(...screened.errors);
+        }
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Unknown Gemini error";
+        errors.push(`Articles were saved, but Gemini idea synthesis failed: ${reason}`);
+      }
+    } else if (!env.GEMINI_API_KEY && newArticles) {
+      errors.push("Articles were saved; configure Gemini to turn them into venture idea findings.");
+    }
+    if (selected.usingGlobalFallback) errors.push("Fewer than 30 active Tier A feeds; the Tier B global fallback was included.");
+    const status: "partial" | "completed" = errors.length ? "partial" : "completed";
+    await ctx.runMutation(internal.scouting.finishRun, {
+      id: runId, status, sourcesChecked: selected.sources.length, articlesFound: allArticles.length,
+      newArticles, ideasFound, error: errors.length ? errors.join(" ").slice(0, 1000) : undefined,
+    });
+    return { runId, status, articlesFound: allArticles.length, newArticles, ideasFound,
+      message: errors.join(" ") || `Checked ${selected.sources.length} approved sources.` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Scout run failed.";
+    await ctx.runMutation(internal.scouting.finishRun, {
+      id: runId, status: "failed", sourcesChecked: 0, articlesFound: 0, newArticles: 0, ideasFound: 0, error: message.slice(0, 1000),
+    });
+    return { runId, status: "failed" as const, articlesFound: 0, newArticles: 0, ideasFound: 0, message };
+  }
+}
+
+export const createRun = internalMutation({
+  args: { scoutType, trigger: triggerType }, returns: v.id("scoutRuns"),
+  handler: async (ctx, args) => await ctx.db.insert("scoutRuns", {
+    ...args, status: "running", startedAt: Date.now(), sourcesChecked: 0, articlesFound: 0, newArticles: 0, ideasFound: 0,
+  }),
+});
+
+async function scrapeSource(source: Doc<"sourceRegistry">, type: ScoutType): Promise<ScoutArticle[]> {
+  let response: Response;
+  try {
+    response = await fetch(source.feedUrl || source.url, {
+      headers: { "user-agent": "Reva-Research-Bot/1.0 (+https://trium.ng; source-feed-reader)", accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html" },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch {
+    return await scrapeWithFirecrawl(source, type);
+  }
+  if (!response.ok) return await scrapeWithFirecrawl(source, type);
+  let feedUrl = source.feedUrl || "";
+  let body = await response.text();
+  if (!feedUrl && /<html[\s>]/i.test(body)) {
+    feedUrl = discoverFeedUrl(body, source.url) || new URL("/feed/", source.url).toString();
+    if (feedUrl !== source.url) {
+      const feedResponse = await fetch(feedUrl, { headers: { "user-agent": "Reva-Research-Bot/1.0", accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" } });
+      if (feedResponse.ok) body = await feedResponse.text();
+    }
+  }
+  let entries = parseFeed(body, source);
+  if (!entries.length && /<html[\s>]/i.test(body)) entries = parseArticleCards(body, source);
+  if (!entries.length && /<html[\s>]/i.test(body)) return await scrapeWithFirecrawl(source, type);
+  const now = Date.now();
+  const fresh = entries.filter((entry) => {
+    if (entry.publishedDate) {
+      const timestamp = Date.parse(entry.publishedDate);
+      if (Number.isFinite(timestamp) && timestamp < now - 45 * 24 * 60 * 60 * 1000) return false;
+    }
+    return type !== "emerging_tech" || !/\bNigeria(?:n)?\b/i.test(`${entry.title} ${entry.content}`);
+  }).slice(0, 8);
+  return await Promise.all(fresh.map(async (entry) => ({
+    ...entry,
+    urlHash: await hash(entry.url),
+    contentHash: await hash(`${entry.title}\n${entry.content}`),
+    sourceType: type,
+    processedAt: now,
+    status: "scraped",
+  })));
+}
+
+/** Free, keyless Firecrawl fallback for JS-rendered or blocked source pages. */
+async function scrapeWithFirecrawl(source: Doc<"sourceRegistry">, type: ScoutType): Promise<ScoutArticle[]> {
+  const page = await firecrawlPage(source.url, true);
+  const origin = new URL(source.url).origin;
+  const candidates = [...new Set(page.links)]
+    .filter((link) => {
+      try {
+        const url = new URL(link);
+        return url.protocol === "https:" && url.origin === origin && /\/(news|article|blog|insight|post|policy|regulat|publication|press|innovation|startup|venture)/i.test(url.pathname);
+      } catch { return false; }
+    }).slice(0, 6);
+  const pages = candidates.length
+    ? await Promise.all(candidates.map(async (url) => {
+      try { return { url, ...(await firecrawlPage(url, false)) }; } catch { return null; }
+    }))
+    : [{ url: source.url, title: page.title || source.name, markdown: page.markdown, links: [] }];
+  const now = Date.now();
+  return await Promise.all(pages.flatMap((item) => {
+    if (!item || !item.markdown.trim()) return [];
+    const content = item.markdown.replace(/\s+/g, " ").trim().slice(0, 7000);
+    const title = (item.title || content.split(/[.!?]/)[0] || source.name).slice(0, 300);
+    if (type === "emerging_tech" && /\bNigeria(?:n)?\b/i.test(`${title} ${content}`)) return [];
+    return [{ url: item.url, title, content, sourceName: source.name, urlHash: "", contentHash: "", sourceType: type, processedAt: now, status: "scraped" }];
+  }).map(async (article) => ({ ...article, urlHash: await hash(article.url), contentHash: await hash(`${article.title}\n${article.content}`) })));
+}
+
+async function firecrawlPage(url: string, includeLinks: boolean): Promise<{ title: string; markdown: string; links: string[] }> {
+  const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ url, formats: includeLinks ? ["markdown", "links"] : ["markdown"], onlyMainContent: true }),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!response.ok) throw new Error(`Firecrawl returned HTTP ${response.status}`);
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || !("success" in payload) || payload.success !== true || !("data" in payload) || !payload.data || typeof payload.data !== "object") {
+    throw new Error("Firecrawl could not extract this source.");
+  }
+  const data = payload.data as Record<string, unknown>;
+  const metadata = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};
+  return {
+    title: typeof metadata.title === "string" ? metadata.title : "",
+    markdown: typeof data.markdown === "string" ? data.markdown : "",
+    links: Array.isArray(data.links) ? data.links.filter((link): link is string => typeof link === "string") : [],
+  };
+}
+
+function discoverFeedUrl(html: string, baseUrl: string) {
+  const links = html.match(/<link\b[^>]*>/gi) || [];
+  for (const tag of links) {
+    if (!/rss|atom|xml/i.test(tag) || !/alternate/i.test(tag)) continue;
+    const href = tag.match(/href\s*=\s*["']([^"']+)/i)?.[1];
+    if (!href) continue;
+    try { return new URL(decodeEntities(href), baseUrl).toString(); } catch { continue; }
+  }
+  return "";
+}
+
+function parseFeed(xml: string, source: Doc<"sourceRegistry">): ParsedScoutArticle[] {
+  const entries = [...xml.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((match) => match[2]);
+  return entries.map((entry) => {
+    const title = xmlTag(entry, "title");
+    const url = xmlTag(entry, "link") || entry.match(/<link\b[^>]*href=["']([^"']+)/i)?.[1] || "";
+    const content = xmlTag(entry, "description") || xmlTag(entry, "summary") || xmlTag(entry, "content:encoded") || xmlTag(entry, "content");
+    const publishedDate = xmlTag(entry, "pubDate") || xmlTag(entry, "published") || xmlTag(entry, "updated");
+    try {
+      const absolute = new URL(decodeEntities(url), source.url);
+      if (absolute.protocol !== "https:" || !title.trim()) return null;
+      return {
+        url: absolute.toString(), title: stripMarkup(title).slice(0, 300), sourceName: source.name,
+        content: stripMarkup(content).slice(0, 7000), publishedDate: publishedDate ? stripMarkup(publishedDate).slice(0, 80) : undefined,
+      };
+    } catch { return null; }
+  }).filter((item): item is NonNullable<typeof item> => item !== null);
+}
+
+function parseArticleCards(html: string, source: Doc<"sourceRegistry">): ParsedScoutArticle[] {
+  const cards = [...html.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/gi)].map((match) => match[1]);
+  return cards.map((card) => {
+    const title = card.match(/<(?:h[1-6]|title)\b[^>]*>([\s\S]*?)<\/(?:h[1-6]|title)>/i)?.[1] || "";
+    const href = card.match(/<a\b[^>]*href=["']([^"']+)/i)?.[1] || "";
+    const content = card.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1] || "";
+    try {
+      const url = new URL(decodeEntities(href), source.url);
+      if (url.protocol !== "https:" || !title.trim()) return null;
+      return { url: url.toString(), title: stripMarkup(title).slice(0, 300), sourceName: source.name, content: stripMarkup(content).slice(0, 7000) };
+    } catch { return null; }
+  }).filter((item): item is NonNullable<typeof item> => item !== null);
+}
+
+function xmlTag(entry: string, name: string) {
+  const safeName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = entry.match(new RegExp(`<${safeName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${safeName}>`, "i"));
+  return match?.[1]?.replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1") || "";
+}
+
+function stripMarkup(value: string) { return decodeEntities(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim(); }
+function decodeEntities(value: string) {
+  return value.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_match, entity: string) => {
+    if (entity.toLowerCase() === "amp") return "&";
+    if (entity.toLowerCase() === "lt") return "<";
+    if (entity.toLowerCase() === "gt") return ">";
+    if (entity.toLowerCase() === "quot") return '"';
+    if (entity.toLowerCase() === "apos") return "'";
+    const code = entity.startsWith("#x") ? parseInt(entity.slice(2), 16) : Number(entity.slice(1));
+    return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+  });
+}
+
+function parseJson(text: string) {
+  return JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as unknown;
+}
+
+function getGeminiText(payload: unknown): string {
+  if (!payload || typeof payload !== "object" || !("steps" in payload) || !Array.isArray(payload.steps)) return "";
+  const output = payload.steps.find((step) => step && typeof step === "object" && "type" in step && step.type === "model_output");
+  if (!output || typeof output !== "object" || !("content" in output) || !Array.isArray(output.content)) return "";
+  return output.content.flatMap((part: unknown) => part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part && typeof part.text === "string" ? [part.text] : []).join("");
+}
+
+async function synthesizeIdeas(articles: ScoutArticle[], type: ScoutType) {
+  const key = env.GEMINI_API_KEY;
+  if (!key || !articles.length) return [];
+  const prompt = `Review the public ${type === "emerging_tech" ? "technology and startup" : "Nigerian regulatory and policy"} articles below. Derive only plausible venture opportunity concepts grounded in the article text. Skip articles that do not support a venture idea. Never invent policy details, market statistics, companies, or facts. Return JSON array items with articleUrl, ideaName, sector, summary. Keep each summary under 100 words.\n\n${articles.map((article, index) => `ARTICLE ${index + 1}\nTitle: ${article.title}\nURL: ${article.url}\nText: ${article.content}`).join("\n\n")}`;
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+    method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
+      response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 5000 } }),
+  });
+  if (!response.ok) throw new Error(`Gemini scout synthesis returned ${response.status}`);
+  const payload = await response.json() as any;
+  const text = payload.steps?.find((step: any) => step.type === "model_output")?.content?.filter((part: any) => part.type === "text")?.map((part: any) => part.text || "").join("");
+  if (!text) return [];
+  const result = parseJson(text);
+  if (!Array.isArray(result)) return [];
+  return result.flatMap((item: any) => {
+    if (!item || typeof item.articleUrl !== "string" || typeof item.ideaName !== "string" || typeof item.summary !== "string") return [];
+    try {
+      const articleUrl = new URL(item.articleUrl).toString();
+      if (!articles.some((article) => article.url === articleUrl)) return [];
+      return [{ articleUrl, ideaName: item.ideaName.slice(0, 180), sector: typeof item.sector === "string" ? item.sector.slice(0, 100) : "Unspecified", summary: item.summary.slice(0, 3000) }];
+    } catch { return []; }
+  });
+}
+
+async function getKnownArticleHashes(ctx: ActionCtx, articles: ScoutArticle[]) {
+  const hashes = new Set<string>();
+  for (const article of articles) {
+    const exists: Doc<"scrapedItems"> | null = await ctx.runQuery(internal.scouting.getArticleByHash, { urlHash: article.urlHash });
+    if (exists) hashes.add(article.urlHash);
+  }
+  return hashes;
+}
+
+export const getArticleByHash = internalQuery({
+  args: { urlHash: v.string() }, returns: v.union(v.null(), v.object({
+    _id: v.id("scrapedItems"), _creationTime: v.number(), urlHash: v.string(), url: v.string(), title: v.string(),
+    sourceName: v.string(), sourceType: v.string(), contentHash: v.string(), content: v.optional(v.string()),
+    aiSummary: v.optional(v.string()), potentialIdea: v.optional(v.string()), aiSector: v.optional(v.string()),
+    processedAt: v.number(), status: v.string(), publishedDate: v.optional(v.string()),
+  })),
+  handler: async (ctx, args) => await ctx.db.query("scrapedItems").withIndex("by_urlHash", (q) => q.eq("urlHash", args.urlHash)).first(),
+});
+
+export const getArticleById = internalQuery({
+  args: { id: v.id("scrapedItems") }, returns: v.union(v.null(), articleDoc),
+  handler: async (ctx, args) => await ctx.db.get(args.id),
+});
+
+export const saveArticleAnalysis = internalMutation({
+  args: { id: v.id("scrapedItems"), summary: v.string(), potentialIdea: v.string(), sector: v.string(), content: v.optional(v.string()) }, returns: v.null(),
+  handler: async (ctx, args) => {
+    const { id, summary, potentialIdea, sector } = args;
+    await ctx.db.patch(id, { aiSummary: summary, potentialIdea, aiSector: sector });
+    return null;
+  },
+});
+
+async function hash(value: string) {
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+  return Array.from(bytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}

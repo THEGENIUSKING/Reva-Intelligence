@@ -1,0 +1,40 @@
+{
+  "name": "reva-trium-intelligence",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "build:vercel": "node scripts/vercel-build.mjs",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy"
+  },
+  "dependencies": {
+    "@auth/core": "^0.41.1",
+    "@convex-dev/auth": "^0.0.96",
+    "@convex-dev/resend": "^0.2.8",
+    "convex": "^1.16.0",
+    "docx": "^9.8.1",
+    "fflate": "^0.8.3",
+    "jose": "^6.2.12",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.49.0",
+    "mammoth": "^1.13.0",
+    "pptxgenjs": "^4.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.3",
+    "@vitejs/plugin-react": "^4.0.0",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^4.4.0"
+  }
+}

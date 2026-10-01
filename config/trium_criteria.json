@@ -1,0 +1,82 @@
+{
+  "system_persona": "You are a strict African venture capital analyst evaluating a business idea for Trium Limited, a Nigerian venture studio. Most ideas should score C or D. A* is extremely rare. Penalise vagueness, hype, saturation, copy-paste Western models, and poor Nigeria/Africa realism. When generating submission responses for viable ideas, craft rigorous, evidence-backed arguments across go-to-market, customer unit economics, and local defensibility to achieve at least a pass score (Grade B or A).",
+  "total_score": 100,
+  "grading_scale": [
+    { "grade": "A*", "min_score": 86, "max_score": 100, "label": "Outstanding", "result": "passed", "color": "#10b981", "action": "Immediate Fast-Track to IC Review" },
+    { "grade": "A",  "min_score": 76, "max_score": 85,  "label": "Excellent",   "result": "passed", "color": "#10b981", "action": "Pass & Advance to EVO Gate 0/1" },
+    { "grade": "B",  "min_score": 66, "max_score": 75,  "label": "Good",        "result": "passed", "color": "#f59e0b", "action": "Pass with Minor Conditions" },
+    { "grade": "C",  "min_score": 57, "max_score": 65,  "label": "Average",     "result": "reserved", "color": "#f59e0b", "action": "Hold in Bank / Needs Validation" },
+    { "grade": "D",  "min_score": 0,  "max_score": 56,  "label": "Below Threshold", "result": "declined", "color": "#ef4444", "action": "Decline" }
+  ],
+  "criteria": [
+    {
+      "key": "strategic_alignment",
+      "label": "Strategic Alignment",
+      "weight": 20,
+      "guide": [
+        "Does this idea adhere to Trium's ideation themes and strategic focus areas?",
+        "Is the idea consistent with our long-term vision, venture studio model, and portfolio goals?",
+        "Does the idea fit into our strategy wheel, starting with our discriminating capabilities and ecosystem unfair advantages?"
+      ]
+    },
+    {
+      "key": "customer_problem",
+      "label": "Customer-Problem Fit",
+      "weight": 20,
+      "guide": [
+        "Does the idea solve a real, acute, and specific problem that Nigerian/African customers or partners face daily?",
+        "Is the solution something customers would be actively willing to adopt and repeatedly pay for?",
+        "How well does the solution match the operational and economic realities of the target audience?"
+      ]
+    },
+    {
+      "key": "solution_fit",
+      "label": "Solution Fit",
+      "weight": 15,
+      "guide": [
+        "Can this idea increase our customer base and help us launch or dominate targeted segments?",
+        "Is the estimated addressable market size (TAM/SAM) large enough to make this an attractive venture-scale opportunity?",
+        "Do we understand the market dynamics, value chain, and switching costs well enough to become a leading player?"
+      ]
+    },
+    {
+      "key": "market_opportunity",
+      "label": "Market Opportunity",
+      "weight": 15,
+      "guide": [
+        "What makes this idea uniquely suited versus existing competitors' offerings and informal alternatives?",
+        "Does this idea meaningfully improve broken processes, enhance margins, or introduce transformative business models?",
+        "Can this idea make a significant commercial and economic impact in the market and in end-users' livelihoods?"
+      ]
+    },
+    {
+      "key": "differentiation",
+      "label": "Differentiation & Moat",
+      "weight": 10,
+      "guide": [
+        "How can this idea continue to grow, remain relevant, and withstand margin compression in the future?",
+        "How strong, well-funded, or entrenched is the current competition in Nigeria and the broader region?",
+        "Can we entrench our position and defend against fast-followers, platform disruption, or disintermediation?"
+      ]
+    },
+    {
+      "key": "sustainable_advantage",
+      "label": "Sustainable Advantage & Studio Synergies",
+      "weight": 10,
+      "guide": [
+        "Do we at Trium have the operational, technological, and capital resources to bring the idea to life rapidly?",
+        "Do we have or can we easily acquire the specialized domain expertise or proprietary distribution channels to make this idea work?",
+        "Are there critical obstacles (macro, FX, infrastructural, counterparty dependencies) that can impede execution?"
+      ]
+    },
+    {
+      "key": "feasibility",
+      "label": "Feasibility & Scalability Potential",
+      "weight": 10,
+      "guide": [
+        "Can we build incrementally on this idea with additional product lines, financial services, or B2B offerings?",
+        "How easily can this idea expand across Nigerian geopolitical zones and scale into neighbouring West/East African markets?"
+      ]
+    }
+  ]
+}

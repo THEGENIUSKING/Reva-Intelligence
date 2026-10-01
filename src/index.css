@@ -1,0 +1,90 @@
+@charset "UTF-8";
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light;
+  --primary: #E07000;
+  --primary-hover: #C96400;
+  --primary-active: #B35800;
+  --primary-light: #FFF4E8;
+  --primary-border: #FFE2C4;
+
+  --bg: #F7F7F6;
+  --surface: #fbf9f4;
+  --surface-low: #f5f4ef;
+  --surface-lowest: #ffffff;
+  
+  --text: #1b1c19;
+  --text-secondary: #5f5e5e;
+  --text-muted: #8A8A86;
+  --border: #e4e2de;
+  --border-strong: #dec1b0;
+
+  --success: #1E824C;
+  --success-bg: #EAF5EE;
+  --success-border: #C3E6CD;
+
+  --error: #ba1a1a;
+  --error-bg: #ffdad6;
+  --error-border: #ffb4ab;
+}
+
+body {
+  font-family: 'Lato', 'Plus Jakarta Sans', sans-serif;
+  background-color: var(--surface);
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  min-width: 320px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Material Symbols configuration */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.material-symbols-outlined.fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+/* Keep scrollbars subtle while preserving discoverable scrolling. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #d4d1ca; border-radius: 999px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (max-width: 767px) {
+  body { overflow-x: hidden; }
+}
+
+/* Subtle diffuse orange glow */
+.ambient-glow-orange {
+  box-shadow: 0 12px 32px -8px rgba(224, 112, 0, 0.1), 0 4px 12px -2px rgba(224, 112, 0, 0.04);
+}
+
+.card-stitch {
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease-in-out;
+}
+
+.card-stitch:hover {
+  box-shadow: 0 8px 24px -4px rgba(43, 43, 43, 0.06);
+}
+
+/* Numeric alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
