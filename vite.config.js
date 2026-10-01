@@ -12,8 +12,6 @@ export default defineConfig({
           if (id.includes("/pptxgenjs/")) return "vendor-powerpoint";
           if (id.includes("/html2canvas/")) return "vendor-html2canvas";
           if (id.includes("/jspdf/")) return "vendor-pdf";
-          if (id.includes("/docx/")) return "vendor-word";
-          if (id.includes("/mammoth/") || id.includes("/fflate/")) return "vendor-document";
         },
       },
     },
