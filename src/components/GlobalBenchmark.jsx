@@ -701,7 +701,9 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                         <th className="p-2.5">Company & Country</th>
                         <th className="p-2.5">Tier</th>
                         <th className="p-2.5">Status & Scale</th>
-                        <th className="p-2.5">Business Model</th>
+                        <th className="p-2.5">Customers & Revenues</th>
+                        <th className="p-2.5">ROI & Viability</th>
+                        <th className="p-2.5">Key Partners</th>
                         <th className="p-2.5">Lessons in Nigerian Context</th>
                         <th className="p-2.5">Citation</th>
                       </tr>
@@ -726,7 +728,9 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                             <span className="font-semibold text-on-surface">{peer.status}</span>
                             {peer.operationalScale && <div className="text-[11px] text-secondary">{peer.operationalScale}</div>}
                           </td>
-                          <td className="p-2.5 text-on-surface">{peer.businessModel}</td>
+                          <td className="p-2.5 text-on-surface text-[11px]">{peer.customersAndRevenues || "-"}</td>
+                          <td className="p-2.5 text-on-surface text-[11px]">{peer.roiAndViability || "-"}</td>
+                          <td className="p-2.5 text-on-surface text-[11px]">{peer.keyPartners || "-"}</td>
                           <td className="p-2.5 text-secondary leading-relaxed max-w-xs">{peer.lessonsLearned}</td>
                           <td className="p-2.5">
                             <a
@@ -995,6 +999,9 @@ function synthesizeBenchmarkLocally(brief, flowType) {
       fundingRaised: "$123M",
       operationalScale: "100k+ retail merchants across West Africa",
       businessModel: "B2B FMCG distribution with embedded credit",
+      customersAndRevenues: "100k+ merchants, high transaction volume",
+      roiAndViability: "Strong viability driven by credit margins",
+      keyPartners: "FMCG Brands, Commercial Banks",
       lessonsLearned: "Asset-light fulfillment hubs outperform heavy vehicle fleets during currency devaluation.",
       sourceUrl: "https://disrupt-africa.com",
       sourceName: "Disrupt Africa",
@@ -1009,6 +1016,9 @@ function synthesizeBenchmarkLocally(brief, flowType) {
       fundingRaised: "$135M",
       operationalScale: "Over 500,000 mom-and-pop store endpoints",
       businessModel: "B2B wholesale marketplace + instant escrow payments",
+      customersAndRevenues: "500k+ SME stores, scalable GMV",
+      roiAndViability: "Sustained growth through escrow lock-in",
+      keyPartners: "Local Logistics, Payment Gateways",
       lessonsLearned: "Local micro-distributor trust requires field agents before self-serve mobile app adoption.",
       sourceUrl: "https://dailysocial.id",
       sourceName: "DailySocial ID",

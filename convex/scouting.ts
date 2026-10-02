@@ -6,6 +6,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { isApprovedVantaIdentity } from "./access";
 
 const scoutType = v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"));
+const runScoutType = v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"), v.literal("full_patrol"));
 const triggerType = v.union(v.literal("scheduled"), v.literal("manual"));
 const runStatus = v.union(v.literal("running"), v.literal("completed"), v.literal("partial"), v.literal("failed"));
 const sourceDoc = v.object({
@@ -15,7 +16,7 @@ const sourceDoc = v.object({
   signOffRevaAdmin: v.boolean(), signOffVantaAdmin: v.boolean(), approvedAt: v.optional(v.number()),
 });
 const runDoc = v.object({
-  _id: v.id("scoutRuns"), _creationTime: v.number(), scoutType, trigger: triggerType, status: runStatus,
+  _id: v.id("scoutRuns"), _creationTime: v.number(), scoutType: runScoutType, trigger: triggerType, status: runStatus,
   startedAt: v.number(), completedAt: v.optional(v.number()), sourcesChecked: v.number(),
   articlesFound: v.number(), newArticles: v.number(), ideasFound: v.number(), error: v.optional(v.string()),
 });

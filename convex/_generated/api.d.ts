@@ -9,6 +9,7 @@
  */
 
 import type * as access from "../access.js";
+import type * as automations from "../automations.js";
 import type * as benchmarking from "../benchmarking.js";
 import type * as benchmarks from "../benchmarks.js";
 import type * as crons from "../crons.js";
@@ -30,6 +31,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  automations: typeof automations;
   benchmarking: typeof benchmarking;
   benchmarks: typeof benchmarks;
   crons: typeof crons;

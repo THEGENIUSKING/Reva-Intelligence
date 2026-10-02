@@ -38,6 +38,8 @@ export function ContinuousScout({ onNavigate }) {
   const analyzeArticle = useAction(api.scouting.analyzeArticle);
   const checkVantaDuplicates = useAction(api.vanta.checkDuplicates);
   const recoverStaleRuns = useMutation(api.scouting.recoverStaleRuns);
+  const screenBatch = useAction(api.screening.screenBatch);
+  const [isScreeningBatch, setIsScreeningBatch] = useState(false);
 
   // Background Auto-Run Heartbeat: executes periodic continuous check every 35 seconds
   useEffect(() => {
@@ -79,6 +81,71 @@ export function ContinuousScout({ onNavigate }) {
       setScoutStatus("Failed");
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleScreenAllVisible = async (scoutType) => {
+    const candidates = scoutType === "emerging_tech" ? paginatedEmerging : paginatedPolicy;
+    if (!candidates.length) return;
+    setError("");
+    setNotice("");
+    setIsScreeningBatch(true);
+    setScoutStatus("In Progress");
+
+    try {
+      const mappedCandidates = candidates.map(c => ({
+        ideaName: c.ideaName || c.name || "Unknown",
+        sector: c.sector || "Unknown",
+        summary: c.summary || c.description || "",
+        articleUrl: c.articleUrl || c.sourceUrl || ""
+      }));
+      
+      const res = await screenBatch({ scoutType, candidates: mappedCandidates });
+      if (res.errors.length) {
+        console.warn("Screening completed with errors:", res.errors);
+      }
+      setNotice(`Successfully screened ${res.processed} opportunities. Check the Screened tab for detailed 7-criteria results.`);
+      setActiveTab("screened");
+      setScoutStatus("Active / Patrolling");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to screen batch.");
+      setScoutStatus("Failed");
+    } finally {
+      setIsScreeningBatch(false);
+    }
+  };
+
+  const [isCheckingBatch, setIsCheckingBatch] = useState(false);
+
+  const handleCheckDuplicatesAllVisible = async (scoutType) => {
+    const candidates = scoutType === "emerging_tech" ? paginatedEmerging : paginatedPolicy;
+    if (!candidates.length) return;
+    setError("");
+    setNotice("");
+    setIsCheckingBatch(true);
+    setScoutStatus("In Progress");
+
+    let duplicateCount = 0;
+    try {
+      for (const opp of candidates) {
+        try {
+          const outcome = await checkVantaDuplicates({
+            ideaName: opp.ideaName || opp.name || "Unknown",
+            description: (opp.problem || "") + " " + (opp.solution || opp.summary || opp.description || ""),
+            sector: opp.sector || "Unknown",
+          });
+          if (outcome.duplicateFound) duplicateCount++;
+        } catch (e) {
+          // Ignore individual dedupe errors to continue batch
+        }
+      }
+      setNotice(`Checked ${candidates.length} opportunities. Found ${duplicateCount} potential duplicates in Vanta Portfolio.`);
+      setScoutStatus("Active / Patrolling");
+    } catch (err) {
+      setError("Failed to check batch duplicates.");
+      setScoutStatus("Failed");
+    } finally {
+      setIsCheckingBatch(false);
     }
   };
 
@@ -424,6 +491,28 @@ export function ContinuousScout({ onNavigate }) {
       {/* TAB 1: Emerging Tech Signals */}
       {activeTab === "emerging" && (
         <div className="space-y-3">
+          <div className="flex justify-end gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => handleCheckDuplicatesAllVisible("emerging_tech")}
+              disabled={isCheckingBatch || isScreeningBatch || paginatedEmerging.length === 0}
+              className="px-4 py-1.5 rounded-lg border border-amber-900/15 bg-white hover:bg-surface-low text-xs font-bold text-on-surface shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px] text-primary">fingerprint</span>
+              <span>{isCheckingBatch ? "Checking..." : "Check Duplicates (Visible)"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScreenAllVisible("emerging_tech")}
+              disabled={isCheckingBatch || isScreeningBatch || paginatedEmerging.length === 0}
+              className="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-xs font-bold text-white shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {isScreeningBatch ? "hourglass_empty" : "checklist"}
+              </span>
+              <span>{isScreeningBatch ? "Screening..." : "Screen Initiatives (Visible)"}</span>
+            </button>
+          </div>
           {paginatedEmerging.length ? (
             paginatedEmerging.map((item, idx) => (
               <article
@@ -448,23 +537,6 @@ export function ContinuousScout({ onNavigate }) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleCheckVantaDedupe(item)}
-                    disabled={checkingDedupeId === item.name}
-                    className="px-3 py-1.5 rounded-lg border border-amber-900/15 bg-surface-low hover:bg-white text-xs font-semibold text-on-surface flex items-center gap-1.5 shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-[15px] text-primary">fingerprint</span>
-                    <span>{checkingDedupeId === item.name ? "Checking…" : "Check Vanta Dedupe"}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOpportunity(item)}
-                    className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-xs font-semibold text-white shadow-xs"
-                  >
-                    Screen Idea
-                  </button>
                 </div>
               </article>
             ))
@@ -481,6 +553,28 @@ export function ContinuousScout({ onNavigate }) {
       {/* TAB 2: Nigerian Policy & Regulatory Catalysts */}
       {activeTab === "policy" && (
         <div className="space-y-3">
+          <div className="flex justify-end gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => handleCheckDuplicatesAllVisible("nigeria_policy")}
+              disabled={isCheckingBatch || isScreeningBatch || paginatedPolicy.length === 0}
+              className="px-4 py-1.5 rounded-lg border border-amber-900/15 bg-white hover:bg-surface-low text-xs font-bold text-on-surface shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px] text-primary">fingerprint</span>
+              <span>{isCheckingBatch ? "Checking..." : "Check Duplicates (Visible)"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScreenAllVisible("nigeria_policy")}
+              disabled={isCheckingBatch || isScreeningBatch || paginatedPolicy.length === 0}
+              className="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-xs font-bold text-white shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {isScreeningBatch ? "hourglass_empty" : "checklist"}
+              </span>
+              <span>{isScreeningBatch ? "Screening..." : "Screen Initiatives (Visible)"}</span>
+            </button>
+          </div>
           {paginatedPolicy.length ? (
             paginatedPolicy.map((item, idx) => (
               <article
@@ -504,23 +598,6 @@ export function ContinuousScout({ onNavigate }) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleCheckVantaDedupe(item)}
-                    disabled={checkingDedupeId === item.name}
-                    className="px-3 py-1.5 rounded-lg border border-amber-900/15 bg-surface-low hover:bg-white text-xs font-semibold text-on-surface flex items-center gap-1.5 shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-[15px] text-primary">fingerprint</span>
-                    <span>{checkingDedupeId === item.name ? "Checking…" : "Check Vanta Dedupe"}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOpportunity(item)}
-                    className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-xs font-semibold text-white shadow-xs"
-                  >
-                    Screen Catalyst
-                  </button>
                 </div>
               </article>
             ))
@@ -785,74 +862,6 @@ export function ContinuousScout({ onNavigate }) {
         </div>
       )}
 
-      {/* Screen Idea Modal (In-House 7-Criteria Reva Screening - Requirement 9) */}
-      {selectedOpportunity && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-amber-900/15 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-start justify-between pb-3 border-b border-amber-900/10">
-              <div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase">
-                  {normalizeSector(selectedOpportunity.sector)}
-                </span>
-                <h3 className="mt-1 text-base font-bold text-on-surface font-headline">{selectedOpportunity.ideaName}</h3>
-                <p className="text-xs text-secondary">{selectedOpportunity.sourceName}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOpportunity(null)}
-                className="text-secondary hover:text-on-surface"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3 text-xs leading-relaxed text-on-surface">
-              <div className="p-3 rounded-lg bg-surface-low border border-amber-900/10">
-                <span className="font-bold text-[10px] uppercase text-secondary block mb-1">OPPORTUNITY PROVENANCE</span>
-                <p>{selectedOpportunity.summary}</p>
-              </div>
-
-              {/* 7-Criteria Screening Preview */}
-              <div>
-                <span className="font-bold text-[10px] uppercase tracking-wider text-secondary block mb-1.5">
-                  In-House 7-Criteria Investment Committee Preview:
-                </span>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {ASSESSMENT_GUIDE_CRITERIA.map((crit) => (
-                    <div key={crit.id} className="p-2.5 rounded-lg bg-surface-low border border-amber-900/10">
-                      <div className="flex justify-between font-bold text-[10px] text-on-surface">
-                        <span>{crit.title}</span>
-                        <span className="text-primary font-headline">Weight: {crit.weight}</span>
-                      </div>
-                      <p className="text-[10px] text-secondary mt-0.5 leading-snug">{crit.considerations[0]}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2 pt-3 border-t border-amber-900/10">
-              <button
-                type="button"
-                onClick={() => setSelectedOpportunity(null)}
-                className="px-3.5 py-1.5 rounded-lg border border-amber-900/15 text-xs font-semibold text-secondary hover:bg-surface-low"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedOpportunity(null);
-                  onNavigate("benchmark");
-                }}
-                className="px-4 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-container"
-              >
-                Benchmark this Concept
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

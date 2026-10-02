@@ -1,4 +1,4 @@
-import { query, mutation, internalMutation, env } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery, env } from "./_generated/server";
 import { v } from "convex/values";
 import { isApprovedVantaIdentity } from "./access";
 
@@ -212,4 +212,16 @@ export const recordScrapeAttempt = internalMutation({
       });
     }
   },
+});
+
+export const getActiveSourceDomains = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const sources = await ctx.db.query("sourceRegistry").withIndex("by_isActive", q => q.eq("isActive", true)).take(100);
+    const domains = new Set<string>();
+    for (const s of sources) {
+      try { domains.add(new URL(s.url).hostname.replace(/^www\./, "")); } catch {}
+    }
+    return Array.from(domains);
+  }
 });

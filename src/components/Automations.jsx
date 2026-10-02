@@ -3,7 +3,9 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 export function Automations() {
-  const convexAutomations = useQuery(api.automations?.listAutomations || {}) || [];
+  const identity = useQuery(api.users.currentIdentity);
+  const canLoad = identity?.authorized === true;
+  const convexAutomations = useQuery(api.automations?.listAutomations || {}, canLoad ? {} : "skip") || [];
   const toggleMutation = useMutation(api.automations?.toggleAutomation || {});
   const createMutation = useMutation(api.automations?.createAutomation || {});
 

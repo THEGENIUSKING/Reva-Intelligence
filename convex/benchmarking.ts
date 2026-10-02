@@ -1,6 +1,6 @@
 "use node";
 
-import { action, env } from "./_generated/server";
+import { action, internalQuery, env } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { isApprovedVantaIdentity } from "./access";
@@ -19,6 +19,7 @@ function isGroundedUrl(value: unknown, groundedHosts: Set<string>) {
     return false;
   }
 }
+
 
 export const extractBrief = action({
   args: {
@@ -121,10 +122,17 @@ export const runBenchmark = action({
     const input: Array<Record<string, unknown>> = [];
     const brief = [args.description, args.problem && `Problem: ${args.problem}`, args.solution && `Solution: ${args.solution}`, args.targetCustomer && `Target: ${args.targetCustomer}`, args.monetization && `Monetization: ${args.monetization}`].filter(Boolean).join("\n\n");
 
+    const domains = await ctx.runQuery(internal.sources.getActiveSourceDomains, {});
+    const searchInstruction = `CRITICAL CRAWLING INSTRUCTION: You MUST use the google_search tool to actively scrape the internet and find real benchmarks. You MUST prioritize crawling the following curated sources in our system:
+${domains.map(d => `site:${d}`).join(" OR ")}
+Your benchmark research must include hard data such as user numbers, revenues, return on investment (ROI), customer demographics, market viability, and key partners.`;
+
     let prompt = "";
     if (isFlow4b) {
       // Flow 4B: Gap Analysis & Viable Initiative Ideas Generator
       prompt = `You are a venture builder at Trium (Coronation Group ecosystem).
+${searchInstruction}
+
 Perform a competitive and market gap analysis against this initiative in Nigeria and peer emerging markets.
 Then, generate 2 to 3 distinct, highly viable initiative ideas designed to fill the identified gaps.
 
@@ -143,6 +151,9 @@ Return ONLY a JSON object with this exact structure:
       "fundingRaised": "string",
       "operationalScale": "string",
       "businessModel": "string",
+      "customersAndRevenues": "string",
+      "roiAndViability": "string",
+      "keyPartners": "string",
       "lessonsLearned": "string",
       "sourceUrl": "https://...",
       "sourceName": "string",
@@ -179,6 +190,8 @@ Brief: ${brief}`;
     } else {
       // Flow 4A: Global Precedent Benchmarking + 7-Criteria Assessment Guide
       prompt = `You are an investment analyst at Trium (Coronation Group ecosystem).
+${searchInstruction}
+
 Research empirical local (Nigeria / Nearby Africa) and international (Emerging Peer / Global Leader) benchmarks for this venture.
 Evaluate the venture against Trium's 7 Investment Committee Criteria:
 1. Strategic Alignment (Weight: 20/100) - Ideation themes, long-term vision, strategy wheel & discriminating capabilities.
@@ -204,6 +217,9 @@ Return ONLY a JSON object with this exact shape:
       "fundingRaised": "string",
       "operationalScale": "string",
       "businessModel": "string",
+      "customersAndRevenues": "string",
+      "roiAndViability": "string",
+      "keyPartners": "string",
       "lessonsLearned": "string",
       "sourceUrl": "https://...",
       "sourceName": "string",
