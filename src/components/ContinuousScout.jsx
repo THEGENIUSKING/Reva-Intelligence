@@ -45,10 +45,10 @@ export function ContinuousScout({ onNavigate }) {
   const availableSectors = useMemo(() => {
     const s = new Set();
     if (recentFindings) recentFindings.forEach(x => { if (x.sector) s.add(normalizeSector(x.sector)); });
-    if (screenedOpportunities) screenedOpportunities.forEach(x => { if (x.sector) s.add(normalizeSector(x.sector)); });
+    if (initiatives) initiatives.forEach(x => { if (x.sector) s.add(normalizeSector(x.sector)); });
     if (recentArticles) recentArticles.forEach(x => { if (x.aiSector) s.add(normalizeSector(x.aiSector)); });
     return ["All Sectors", ...Array.from(s).filter(Boolean).sort()];
-  }, [recentFindings, screenedOpportunities, recentArticles]);
+  }, [recentFindings, initiatives, recentArticles]);
 
   // Background Auto-Run Heartbeat: executes periodic continuous check every 35 seconds
   useEffect(() => {
@@ -324,7 +324,7 @@ export function ContinuousScout({ onNavigate }) {
               <span className="material-symbols-outlined text-[17px]">
                 {isRunning ? "hourglass_top" : "sync"}
               </span>
-              <span>{isRunning ? "Patrolling {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} Sources...€¦" : "Launch Concurrent Scout Patrol"}</span>
+              <span>{isRunning ? "Patrolling {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} Sources...ï¿½ï¿½" : "Launch Concurrent Scout Patrol"}</span>
             </button>
           </div>
         </div>
