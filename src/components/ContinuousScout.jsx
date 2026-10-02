@@ -702,53 +702,56 @@ export function ContinuousScout({ onNavigate }) {
       {/* TAB 4: Crawled Articles Archive (Session History) */}
       {activeTab === "articles" && (
         <div className="space-y-3">
-          <div className="overflow-x-auto rounded-xl bg-white/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-amber-900/10">
-            <table className="w-full text-xs text-left min-w-[700px]">
-              <thead className="bg-surface-low text-secondary text-[10px] uppercase font-bold tracking-wider">
-                <tr>
-                  <th className="p-2.5">Article Title & Source</th>
-                  <th className="p-2.5">Sector</th>
-                  <th className="p-2.5">Session Status</th>
-                  <th className="p-2.5">Ingestion Time</th>
-                  <th className="p-2.5 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-amber-900/10">
-                {paginatedArticles.map((art, idx) => (
-                  <tr key={art._id || idx} className="hover:bg-surface-low/40">
-                    <td className="p-2.5 max-w-sm">
-                      <div className="font-bold text-on-surface truncate">{art.title}</div>
-                      <div className="text-[11px] text-secondary">{art.sourceName}</div>
-                    </td>
-                    <td className="p-2.5">
+          {paginatedArticles.length ? (
+            paginatedArticles.map((art, idx) => (
+              <article
+                key={art._id || idx}
+                className="rounded-xl bg-white/80 p-4.5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-amber-900/10 flex flex-col gap-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-amber-900/5 pb-2">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h4 className="text-sm font-bold text-on-surface font-headline leading-snug">{art.title}</h4>
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
                         {normalizeSector(art.aiSector)}
                       </span>
-                    </td>
-                    <td className="p-2.5">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-low text-secondary border border-amber-900/10">
                         {idx < 4 ? "NEW (Session)" : "Previously Crawled"}
                       </span>
-                    </td>
-                    <td className="p-2.5 text-secondary text-[11px]">
-                      {art.processedAt ? new Date(art.processedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "Recent"}
-                    </td>
-                    <td className="p-2.5 text-center">
-                      <a
-                        href={art.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:underline font-mono text-[11px] inline-flex items-center gap-1"
-                      >
-                        <span>Open Source</span>
-                        <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                    <div className="text-xs text-secondary flex items-center gap-2">
+                      <span className="font-semibold">{art.sourceName}</span>
+                      <span>&bull;</span>
+                      <span>{art.processedAt ? new Date(art.processedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "Recent"}</span>
+                    </div>
+                  </div>
+                  
+                  <a
+                    href={art.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 px-3 py-1.5 rounded-lg border border-amber-900/15 bg-white hover:bg-surface-low text-xs font-semibold text-primary flex items-center gap-1.5 shadow-xs transition-all"
+                  >
+                    <span>Read Full Article</span>
+                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                  </a>
+                </div>
+                
+                {art.aiSummary && (
+                  <div className="text-xs text-on-surface/90 leading-relaxed bg-surface-low/50 p-3 rounded-lg border border-amber-900/5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block mb-1.5">Gemini AI Summary</span>
+                    <p>{art.aiSummary}</p>
+                  </div>
+                )}
+              </article>
+            ))
+          ) : (
+            <div className="rounded-xl bg-white/70 p-8 text-center border border-amber-900/10">
+              <span className="material-symbols-outlined text-3xl text-secondary">article</span>
+              <p className="mt-2 font-bold text-sm text-on-surface">No articles match your filters</p>
+              <p className="text-xs text-secondary mt-1">Try adjusting the time range, sector, or search keywords.</p>
+            </div>
+          )}
         </div>
       )}
 
