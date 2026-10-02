@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // ── 1. FLOW 1: BENCHMARK REPORTS ─────────────────────────────────────────
+  // ── 1. FLOW 1 & 4A/4B: BENCHMARK REPORTS & GAP INITIATIVES ────────────────
   benchmarks: defineTable({
     ownerId:         v.optional(v.string()),
     ideaName:        v.string(),
@@ -13,6 +13,7 @@ export default defineSchema({
     solution:        v.string(),
     targetCustomer:  v.string(),
     monetization:    v.optional(v.string()),
+    flowType:        v.optional(v.string()), // "flow4a_benchmark" | "flow4b_gap_initiatives"
 
     // Peer market empirical benchmarks array
     benchmarks: v.array(v.object({
@@ -46,6 +47,25 @@ export default defineSchema({
       triumStrategicVerdict: v.string(),
     }),
 
+    // Reva 7-Criteria Assessment (Flow 4A)
+    scoringCriteria: v.optional(v.any()),
+
+    // Gap Analysis & Viable Initiative Ideas (Flow 4B)
+    gapInitiativeIdeas: v.optional(v.array(v.object({
+      ideaName:           v.string(),
+      description:        v.string(),
+      category:           v.string(),
+      problem:            v.string(),
+      solution:           v.string(),
+      similarSolutions:   v.string(),
+      targetCustomer:     v.string(),
+      goToMarket:         v.string(),
+      valueDrivers:       v.array(v.string()),
+      monetization:       v.string(),
+      additionalDetails:  v.optional(v.string()),
+      sourceLink:         v.optional(v.string()),
+    }))),
+
     counts: v.object({
       total:         v.number(),
       nearbyAfrica:  v.number(),
@@ -61,7 +81,7 @@ export default defineSchema({
     .index("by_owner_createdAt", ["ownerId", "createdAt"])
     .index("by_owner_conceptHash", ["ownerId", "conceptHash"]),
 
-  // ── 2. FLOWS 2a, 2b, 2c: EVALUATED VENTURE INITIATIVES ───────────────────
+  // ── 2. FLOWS 2a, 2b, 2c & IN-HOUSE 7-CRITERIA EVALUATIONS ─────────────────
   initiatives: defineTable({
     ownerId:         v.optional(v.string()),
     name:             v.string(),
@@ -86,6 +106,9 @@ export default defineSchema({
     matchingVantaId:      v.optional(v.string()),
     matchingVantaName:    v.optional(v.string()),
     dedupeDifferentiator: v.optional(v.string()),
+    vantaDuplicateFound:  v.optional(v.boolean()),
+    vantaDuplicateCount:  v.optional(v.number()),
+    matchingVantaList:    v.optional(v.any()), // Array of { name, similarity, description }
     vantaSubmissionStatus: v.optional(v.string()),
     vantaSubmissionId:     v.optional(v.string()),
 
@@ -99,15 +122,15 @@ export default defineSchema({
       rationale: v.string(),
     }))),
 
-    // Trium 7-Criteria Vanta Assessment
+    // In-House Trium 7-Criteria Scorecard (20, 20, 15, 15, 10, 10, 10 = 100)
     vantaScore:       v.number(), // 0 to 100
     vantaGrade:       v.string(), // "A*" | "A" | "B" | "C" | "D"
     vantaResult:      v.string(), // "passed" | "reserved" | "declined"
     overallComments:  v.string(),
     keyStrengths:     v.array(v.string()),
     keyRisks:         v.array(v.string()),
-    criteriaScores:   v.any(),    // JSON map of the 7 criteria with score & rationale
-    draftSubmission:  v.any(),    // Pre-drafted submission responses for Vanta
+    criteriaScores:   v.any(),    // Detailed 7 criteria breakdown with considerations & rationales
+    draftSubmission:  v.any(),    // Pre-drafted submission responses
     tldr:             v.optional(v.any()),
 
     // Lifecycle Fate & Status
@@ -140,6 +163,8 @@ export default defineSchema({
     aiSummary:     v.optional(v.string()),
     potentialIdea: v.optional(v.string()),
     aiSector:      v.optional(v.string()),
+    isNewInSession: v.optional(v.boolean()),
+    sessionDate:   v.optional(v.string()),
     processedAt:   v.number(),
     status:        v.string(), // "processed" | "skipped" | "duplicate"
     publishedDate: v.optional(v.string()),
@@ -154,9 +179,11 @@ export default defineSchema({
     name:         v.string(),
     url:          v.string(),
     feedUrl:      v.optional(v.string()),
-    region:       v.string(), // "Africa (Ex-NG)" | "Southeast Asia" | "Latin America" | "Nigeria Regulator" | "Global Fallback"
+    region:       v.string(),
     tier:         v.string(), // "tier_a_emerging" | "tier_b_global" | "nigeria_regulator" | "nigeria_legal"
-    category:     v.string(),
+    category:     v.string(), // "Emerging Market Primary" | "Nigerian Regulatory, Legal and Policy Environment" | "Global Fallback"
+    sector:       v.optional(v.string()),
+    dateAdded:    v.optional(v.number()),
     isActive:     v.boolean(),
     lastScrapedAt: v.optional(v.number()),
     failureCount:  v.number(),
@@ -168,11 +195,12 @@ export default defineSchema({
   })
     .index("by_tier",     ["tier"])
     .index("by_isActive", ["isActive"])
+    .index("by_category", ["category"])
     .index("by_name",     ["name"])
     .index("by_url",      ["url"]),
 
   scoutRuns: defineTable({
-    scoutType: v.union(v.literal("emerging_tech"), v.literal("nigeria_policy")),
+    scoutType: v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"), v.literal("full_patrol")),
     trigger: v.union(v.literal("scheduled"), v.literal("manual")),
     status: v.union(v.literal("running"), v.literal("completed"), v.literal("partial"), v.literal("failed")),
     startedAt: v.number(),
@@ -197,14 +225,34 @@ export default defineSchema({
     ideaName: v.string(),
     sector: v.string(),
     summary: v.string(),
+    isNewInSession: v.optional(v.boolean()),
+    sessionDate:   v.optional(v.string()),
     status: v.union(v.literal("new"), v.literal("reviewed"), v.literal("dismissed")),
     createdAt: v.number(),
   })
     .index("by_createdAt", ["createdAt"])
     .index("by_scoutType_createdAt", ["scoutType", "createdAt"])
+    .index("by_sector", ["sector"])
     .index("by_articleUrl", ["articleUrl"]),
 
-  // ── 5. DIT EMAIL NOTIFICATION AUDIT LOGS ─────────────────────────────────
+  // ── 5. AUTOMATIONS HUB ───────────────────────────────────────────────────
+  automations: defineTable({
+    key:            v.string(),
+    title:          v.string(),
+    description:    v.string(),
+    trigger:        v.string(),
+    action:         v.string(),
+    category:       v.string(),
+    isActive:       v.boolean(),
+    lastRunAt:      v.optional(v.number()),
+    executionCount: v.number(),
+    status:         v.string(), // "active" | "paused" | "running" | "failed"
+    createdAt:      v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_isActive", ["isActive"]),
+
+  // ── 6. DIT EMAIL NOTIFICATION AUDIT LOGS ─────────────────────────────────
   emailLogs: defineTable({
     ownerId:      v.optional(v.string()),
     initiativeId: v.optional(v.string()),

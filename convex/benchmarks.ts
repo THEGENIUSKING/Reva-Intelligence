@@ -12,7 +12,7 @@ export const listRecent = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
-    const limit = args.limit ?? 20;
+    const limit = args.limit ?? 50;
     const items = await ctx.db
       .query("benchmarks")
       .withIndex("by_owner_createdAt", (q) => q.eq("ownerId", identity.subject))
@@ -51,7 +51,7 @@ export const getByConceptHash = query({
 });
 
 /**
- * Save a generated benchmark report.
+ * Save a generated benchmark report (Flow 4A or 4B).
  */
 export const saveGenerated = internalMutation({
   args: {
@@ -64,6 +64,7 @@ export const saveGenerated = internalMutation({
     solution: v.string(),
     targetCustomer: v.string(),
     monetization: v.optional(v.string()),
+    flowType: v.optional(v.string()),
     benchmarks: v.array(
       v.object({
         companyName: v.string(),
@@ -98,6 +99,8 @@ export const saveGenerated = internalMutation({
       recurringPatterns: v.array(v.string()),
       triumStrategicVerdict: v.string(),
     }),
+    scoringCriteria: v.optional(v.any()),
+    gapInitiativeIdeas: v.optional(v.any()),
     counts: v.object({
       total: v.number(),
       nearbyAfrica: v.number(),
@@ -106,7 +109,6 @@ export const saveGenerated = internalMutation({
     }),
   },
   handler: async (ctx, args) => {
-    // Check if report already exists for this concept hash
     const existing = await ctx.db
       .query("benchmarks")
       .withIndex("by_owner_conceptHash", (q) => q.eq("ownerId", args.ownerId).eq("conceptHash", args.conceptHash))

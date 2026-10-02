@@ -8,14 +8,9 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
       icon: "dashboard",
     },
     {
-      id: "start",
-      label: "Start",
-      icon: "explore",
-    },
-    {
       id: "benchmark",
       label: "Benchmarking",
-      icon: "balance",
+      icon: "query_stats",
       badge: counts.benchmarks > 0 ? String(counts.benchmarks) : null,
     },
     {
@@ -25,20 +20,26 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
       badge: counts.findings > 0 ? String(counts.findings) : null,
     },
     {
+      id: "automations",
+      label: "Automations",
+      icon: "smart_toy",
+      badge: "6 Active",
+    },
+    {
       id: "sources",
-      label: "Source registry",
+      label: "Source Registry",
       icon: "database",
     },
     {
       id: "emails",
-      label: "Email history",
-      icon: "description",
+      label: "Email Audit Log",
+      icon: "mark_email_read",
       badge: counts.emails > 0 ? String(counts.emails) : null,
     },
   ];
 
   return (
-    <aside className={`fixed left-0 top-0 z-50 flex h-dvh flex-col justify-between border-r border-border bg-[#171715] text-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] transition-[width] duration-200 select-none ${collapsed ? "w-[72px]" : "w-[72px] md:w-[260px]"}`}>
+    <aside className={`fixed left-0 top-0 z-50 flex h-dvh flex-col justify-between border-r border-amber-900/15 bg-[#171715] text-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] transition-[width] duration-200 select-none ${collapsed ? "w-[72px]" : "w-[72px] md:w-[260px]"}`}>
       <div className="flex flex-col">
         {/* Brand Header */}
         <div className="h-16 px-3 md:px-space-md flex items-center justify-center md:justify-between gap-space-sm border-b border-white/10">
@@ -54,10 +55,10 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
               </svg>
             </div>
             <div className={`${collapsed ? "hidden" : "hidden md:flex"} flex-col`}>
-              <span className="font-headline-sm text-title-lg text-white tracking-tight leading-tight font-bold">
+              <span className="font-headline text-lg text-white tracking-tight leading-tight font-bold">
                 Trium
               </span>
-              <span className="font-label-caps text-label-caps text-primary uppercase tracking-wider font-bold">
+              <span className="text-[10px] text-primary uppercase tracking-wider font-bold">
                 Idea Intelligence
               </span>
             </div>
@@ -68,8 +69,8 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
         </div>
 
         {/* Section Label */}
-        <div className={`${collapsed ? "hidden" : "hidden md:block"} px-space-md pt-space-sm pb-space-xs`}>
-          <span className="font-label-caps text-label-caps uppercase text-white/50 tracking-wider font-bold">
+        <div className={`${collapsed ? "hidden" : "hidden md:block"} px-space-md pt-3 pb-1`}>
+          <span className="text-[10px] uppercase text-white/40 tracking-wider font-bold">
             Platform Modules
           </span>
         </div>
@@ -85,7 +86,7 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
                 type="button"
                 onClick={() => setActiveTab(item.id)}
                 title={item.label}
-                className={`w-full flex items-center justify-center md:justify-start gap-space-sm px-1.5 md:px-space-sm py-2 rounded-lg transition-all font-body-md text-body-md group text-left cursor-pointer ${
+                className={`w-full flex items-center justify-center md:justify-start gap-space-sm px-1.5 md:px-space-sm py-2 rounded-lg transition-all text-xs group text-left cursor-pointer ${
                   isActive
                     ? "bg-white/10 text-white font-semibold border border-white/10 shadow-xs"
                     : "text-white/75 hover:bg-white/10 hover:text-white"
@@ -102,18 +103,19 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
                 <span className={`${collapsed ? "hidden" : "hidden md:block"} flex-1 text-xs font-semibold`}>{item.label}</span>
 
                 {item.badge && (
-                  <span className={`${collapsed ? "hidden" : "hidden md:inline"} px-1.5 py-0.5 rounded-full bg-white/10 text-[10px] font-label-caps font-bold text-white/75`}>
+                  <span className={`${collapsed ? "hidden" : "hidden md:inline"} px-1.5 py-0.5 rounded-full ${
+                    item.id === "automations" ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-white/75"
+                  } text-[10px] font-bold`}>
                     {item.badge}
                   </span>
                 )}
               </button>
             );
           })}
-
         </nav>
       </div>
-
     </aside>
   );
 }
+
 export default Sidebar;
