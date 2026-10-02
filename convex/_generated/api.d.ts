@@ -19,6 +19,7 @@ import type * as http from "../http.js";
 import type * as initiatives from "../initiatives.js";
 import type * as scouting from "../scouting.js";
 import type * as screening from "../screening.js";
+import type * as seed_sources from "../seed_sources.js";
 import type * as sources from "../sources.js";
 import type * as users from "../users.js";
 import type * as vanta from "../vanta.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   initiatives: typeof initiatives;
   scouting: typeof scouting;
   screening: typeof screening;
+  seed_sources: typeof seed_sources;
   sources: typeof sources;
   users: typeof users;
   vanta: typeof vanta;

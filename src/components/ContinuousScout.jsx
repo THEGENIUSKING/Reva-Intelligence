@@ -41,6 +41,15 @@ export function ContinuousScout({ onNavigate }) {
   const screenBatch = useAction(api.screening.screenBatch);
   const [isScreeningBatch, setIsScreeningBatch] = useState(false);
 
+  // Dynamic filter lists based exclusively on actual database records
+  const availableSectors = useMemo(() => {
+    const s = new Set();
+    if (recentFindings) recentFindings.forEach(x => { if (x.sector) s.add(normalizeSector(x.sector)); });
+    if (screenedOpportunities) screenedOpportunities.forEach(x => { if (x.sector) s.add(normalizeSector(x.sector)); });
+    if (recentArticles) recentArticles.forEach(x => { if (x.aiSector) s.add(normalizeSector(x.aiSector)); });
+    return ["All Sectors", ...Array.from(s).filter(Boolean).sort()];
+  }, [recentFindings, screenedOpportunities, recentArticles]);
+
   // Background Auto-Run Heartbeat: executes periodic continuous check every 35 seconds
   useEffect(() => {
     void recoverStaleRuns({ now: Date.now() }).catch(() => {});
@@ -300,7 +309,7 @@ export function ContinuousScout({ onNavigate }) {
               Autonomous Continuous Scout & Viability Patrol
             </h1>
             <p className="mt-0.5 text-xs text-secondary max-w-3xl leading-relaxed">
-              Autonomously patrolling 59 curated emerging market publications and Nigerian regulatory authorities (CBN, SEC, NERC, FIRS). Real-time Gemini sector categorization, in-house 7-Criteria screening, and Vanta deduplication outcomes.
+              Autonomously patrolling {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} curated emerging market publications and Nigerian regulatory authorities (CBN, SEC, NERC, FIRS). Real-time Gemini sector categorization, in-house 7-Criteria screening, and Vanta deduplication outcomes.
             </p>
           </div>
 
@@ -315,7 +324,7 @@ export function ContinuousScout({ onNavigate }) {
               <span className="material-symbols-outlined text-[17px]">
                 {isRunning ? "hourglass_top" : "sync"}
               </span>
-              <span>{isRunning ? "Patrolling 59 Sourcesâ€¦" : "Launch Concurrent Scout Patrol"}</span>
+              <span>{isRunning ? "Patrolling {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} Sources...€¦" : "Launch Concurrent Scout Patrol"}</span>
             </button>
           </div>
         </div>
@@ -324,13 +333,13 @@ export function ContinuousScout({ onNavigate }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3.5 text-xs">
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">MONITORED SOURCES</span>
-            <span className="font-headline font-bold text-lg text-on-surface mt-0.5 block">59 Active Feeds</span>
+            <span className="font-headline font-bold text-lg text-on-surface mt-0.5 block">{((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0)) || 0} Active Feeds</span>
             <span className="text-[10px] text-secondary">35 Emerging Â· 15 Global Â· 9 Regulators</span>
           </div>
 
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">ARTICLES INGESTED (24H)</span>
-            <span className="font-headline font-bold text-lg text-primary mt-0.5 block">{overview?.articlesLastDay || recentArticles.length || 18} Captured</span>
+            <span className="font-headline font-bold text-lg text-primary mt-0.5 block">{overview?.articlesLastDay || recentArticles.length || 0} Captured</span>
             <span className="text-[10px] text-secondary">Auto-parsed & Sector Tagged</span>
           </div>
 
@@ -428,7 +437,7 @@ export function ContinuousScout({ onNavigate }) {
         {/* Sector Chips */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-secondary mr-1">Sector:</span>
-          {CANONICAL_SECTORS.slice(0, 5).map((sec) => (
+          {availableSectors.slice(0, 5).map((sec) => (
             <button
               key={sec}
               type="button"
@@ -442,16 +451,18 @@ export function ContinuousScout({ onNavigate }) {
               {sec.split(" & ")[0]}
             </button>
           ))}
-          <select
-            value={sectorFilter}
-            onChange={(e) => setSectorFilter(e.target.value)}
-            className="px-2 py-1 rounded-full text-[11px] font-medium bg-surface-lowest text-secondary border border-amber-900/10 focus:outline-none"
-          >
-            <option value="All Sectors">All Sectors...</option>
-            {CANONICAL_SECTORS.slice(5).map((sec) => (
-              <option key={sec} value={sec}>{sec}</option>
-            ))}
-          </select>
+          {availableSectors.length > 5 && (
+            <select
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value)}
+              className="px-2 py-1 rounded-full text-[11px] font-medium bg-surface-lowest text-secondary border border-amber-900/10 focus:outline-none"
+            >
+              <option value="All Sectors">More Sectors...</option>
+              {availableSectors.slice(5).map((sec) => (
+                <option key={sec} value={sec}>{sec}</option>
+              ))}
+            </select>
+          )}
 
           {/* Grade filter for screened tab */}
           {activeTab === "screened" && (

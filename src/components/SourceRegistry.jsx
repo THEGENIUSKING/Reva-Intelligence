@@ -33,13 +33,18 @@ const INITIAL_REGISTRY_SOURCES = [
   { id: "s17", name: "Y Combinator Launches", url: "https://www.ycombinator.com/blog", region: "Global", category: "Global Fallback", sector: "Fintech & Financial Inclusion", dateAdded: Date.now() - 86400000 * 30, revaSigned: true, vantaSigned: true },
 ];
 
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+
 export function SourceRegistry() {
-  const [sources, setSources] = useState(INITIAL_REGISTRY_SOURCES);
+  const dbSources = useQuery(api.sources.listSources, {}) || [];
+  const sources = dbSources.length > 0 ? dbSources : [];
+
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 12; // 12 items per batch
+  const PAGE_SIZE = 12;
 
   // Add source modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -50,18 +55,29 @@ export function SourceRegistry() {
   const [formRegion, setFormRegion] = useState("");
   const [formError, setFormError] = useState("");
 
-  // Import feedback
   const [importNotice, setImportNotice] = useState("");
   const fileInputRef = useRef(null);
+
+  const addSource = useMutation(api.sources.addSource);
+
+  // Dynamic filter lists based exclusively on actual database records
+  const availableSectors = useMemo(() => {
+    const s = new Set();
+    sources.forEach(x => { if (x.sector) s.add(normalizeSector(x.sector)); });
+    return ["All Sectors", ...Array.from(s).filter(Boolean).sort()];
+  }, [sources]);
+
+  const availableCategories = useMemo(() => {
+    const c = new Set();
+    sources.forEach(x => { if (x.category) c.add(x.category); });
+    return Array.from(c).filter(Boolean).sort();
+  }, [sources]);
 
   // Filter sources
   const filteredSources = useMemo(() => {
     return sources.filter((s) => {
-      // Category filter
       if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
-      // Sector filter
       if (sectorFilter !== "All Sectors" && normalizeSector(s.sector) !== sectorFilter) return false;
-      // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return `${s.name} ${s.url} ${s.region || ""} ${s.category} ${s.sector || ""}`.toLowerCase().includes(q);
@@ -70,7 +86,6 @@ export function SourceRegistry() {
     });
   }, [sources, categoryFilter, sectorFilter, searchQuery]);
 
-  // Reset pagination on filter
   useEffect(() => {
     setPage(1);
   }, [categoryFilter, sectorFilter, searchQuery]);
@@ -78,45 +93,41 @@ export function SourceRegistry() {
   const totalPages = Math.ceil(filteredSources.length / PAGE_SIZE) || 1;
   const paginatedSources = filteredSources.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Manual Add Source (Compulsory: Name, URL, Category)
-  const handleAddSource = (e) => {
+  const importSourcesMutation = useMutation(api.sources.importCuratedSources);
+  const approveSource = useMutation(api.sources.approveSource);
+
+  const getTierForCategory = (cat) => {
+    if (cat === "Global Fallback") return "tier_b_global";
+    if (cat === "Nigerian Regulatory, Legal and Policy Environment") return "nigeria_regulator";
+    return "tier_a_emerging";
+  };
+
+  const handleAddSource = async (e) => {
     e.preventDefault();
     setFormError("");
 
-    if (!formName.trim()) {
-      setFormError("Source Name is compulsory.");
-      return;
-    }
-    if (!formUrl.trim() || !formUrl.startsWith("http")) {
-      setFormError("Valid HTTPS Website URL is compulsory.");
-      return;
-    }
-    if (!formCategory) {
-      setFormError("Category selection is compulsory.");
-      return;
-    }
+    if (!formName.trim()) { setFormError("Source Name is compulsory."); return; }
+    if (!formUrl.trim() || !formUrl.startsWith("http")) { setFormError("Valid HTTPS Website URL is compulsory."); return; }
+    if (!formCategory) { setFormError("Category selection is compulsory."); return; }
 
-    const newSource = {
-      id: "s_" + Date.now(),
-      name: formName.trim(),
-      url: formUrl.trim(),
-      category: formCategory,
-      sector: formSector || "Fintech & Financial Inclusion",
-      region: formRegion.trim() || (formCategory === "Nigerian Regulatory, Legal and Policy Environment" ? "Nigeria" : "Emerging Markets"),
-      dateAdded: Date.now(),
-      revaSigned: true,
-      vantaSigned: false, // Requires counter-signoff
-    };
-
-    setSources([newSource, ...sources]);
-    setImportNotice(`Source "${formName}" registered successfully.`);
-    setFormName("");
-    setFormUrl("");
-    setFormRegion("");
-    setShowAddModal(false);
+    try {
+      await addSource({
+        name: formName.trim(),
+        url: formUrl.trim(),
+        category: formCategory,
+        tier: getTierForCategory(formCategory),
+        region: formRegion.trim() || (formCategory === "Nigerian Regulatory, Legal and Policy Environment" ? "Nigeria" : "Emerging Markets")
+      });
+      setImportNotice(`Source "${formName}" registered successfully.`);
+      setFormName("");
+      setFormUrl("");
+      setFormRegion("");
+      setShowAddModal(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to add source");
+    }
   };
 
-  // Import Source Catalog from Excel (.xlsx) or CSV (.csv)
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -146,19 +157,14 @@ export function SourceRegistry() {
         throw new Error("Please choose an Excel (.xlsx, .xls) or CSV (.csv) file.");
       }
 
-      if (!importedRows.length) {
-        throw new Error("No data rows found in the uploaded file.");
-      }
+      if (!importedRows.length) throw new Error("No data rows found in the uploaded file.");
 
-      let addedCount = 0;
       const newItems = [];
-
       for (const row of importedRows) {
         const name = row.name || row.sourcename || row.title || row.publication || "";
         const url = row.url || row.website || row.link || "";
         let category = row.category || row.tier || "Emerging Market Primary";
 
-        // Normalize category to the 3 exact categories
         if (category.toLowerCase().includes("regulat") || category.toLowerCase().includes("policy") || category.toLowerCase().includes("nigeria")) {
           category = "Nigerian Regulatory, Legal and Policy Environment";
         } else if (category.toLowerCase().includes("global")) {
@@ -169,23 +175,18 @@ export function SourceRegistry() {
 
         if (name && url && url.startsWith("http")) {
           newItems.push({
-            id: `s_imp_${Date.now()}_${addedCount}`,
             name: String(name).slice(0, 100),
             url: String(url).slice(0, 200),
             category,
-            sector: normalizeSector(row.sector || row.industry || ""),
-            region: row.region || "Global",
-            dateAdded: Date.now(),
-            revaSigned: true,
-            vantaSigned: true,
+            tier: getTierForCategory(category),
+            region: row.region || "Global"
           });
-          addedCount++;
         }
       }
 
-      if (addedCount > 0) {
-        setSources((prev) => [...newItems, ...prev]);
-        setImportNotice(`Successfully imported ${addedCount} verified sources into the catalog.`);
+      if (newItems.length > 0) {
+        const result = await importSourcesMutation({ sources: newItems });
+        setImportNotice(`Successfully imported ${result.added} verified sources (${result.alreadyPresent} already present).`);
       } else {
         throw new Error("Could not parse valid sources. Ensure columns include 'Name' and 'URL'.");
       }
@@ -196,16 +197,12 @@ export function SourceRegistry() {
     }
   };
 
-  const toggleSignOff = (id, role) => {
-    setSources((prev) =>
-      prev.map((src) => {
-        if (src.id === id) {
-          if (role === "reva") return { ...src, revaSigned: !src.revaSigned };
-          return { ...src, vantaSigned: !src.vantaSigned };
-        }
-        return src;
-      })
-    );
+  const toggleSignOff = async (id, role) => {
+    try {
+      await approveSource({ id, signatureType: role });
+    } catch (err) {
+      alert("Failed to toggle signoff: " + err.message);
+    }
   };
 
   return (
@@ -217,7 +214,7 @@ export function SourceRegistry() {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-primary/10 text-primary">
               Curated Source Registry & Governance
             </span>
-            <span className="text-[11px] text-secondary">59 Verified Feeds</span>
+            <span className="text-[11px] text-secondary">{sources.length} Verified Feeds</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-on-surface font-headline">
             Curated Source Catalog & Dual Governance
@@ -283,7 +280,7 @@ export function SourceRegistry() {
             All Categories ({sources.length})
           </button>
 
-          {SOURCE_CATEGORIES.map((cat) => {
+          {availableCategories.map((cat) => {
             const count = sources.filter((s) => s.category === cat).length;
             return (
               <button
@@ -344,7 +341,7 @@ export function SourceRegistry() {
             <tbody className="divide-y divide-amber-900/10">
               {paginatedSources.length ? (
                 paginatedSources.map((src) => {
-                  const isFullyActive = src.revaSigned && src.vantaSigned;
+                  const isFullyActive = src.signOffRevaAdmin && src.signOffVantaAdmin;
                   return (
                     <tr key={src.id} className="hover:bg-surface-low/40">
                       <td className="p-2.5 max-w-xs">
@@ -380,28 +377,28 @@ export function SourceRegistry() {
                       <td className="p-2.5 text-center">
                         <button
                           type="button"
-                          onClick={() => toggleSignOff(src.id, "reva")}
+                          onClick={() => toggleSignOff(src._id, "reva")}
                           className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                            src.revaSigned
+                            src.signOffRevaAdmin
                               ? "bg-emerald-500/10 text-emerald-800 border-emerald-500/20"
                               : "bg-surface-low text-secondary border-amber-900/10"
                           }`}
                         >
-                          {src.revaSigned ? "Approved" : "Sign Off"}
+                          {src.signOffRevaAdmin ? "Approved" : "Sign Off"}
                         </button>
                       </td>
 
                       <td className="p-2.5 text-center">
                         <button
                           type="button"
-                          onClick={() => toggleSignOff(src.id, "vanta")}
+                          onClick={() => toggleSignOff(src._id, "vanta")}
                           className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                            src.vantaSigned
+                            src.signOffVantaAdmin
                               ? "bg-emerald-500/10 text-emerald-800 border-emerald-500/20"
                               : "bg-amber-500/10 text-amber-800 border-amber-500/20"
                           }`}
                         >
-                          {src.vantaSigned ? "Approved" : "Awaiting"}
+                          {src.signOffVantaAdmin ? "Approved" : "Awaiting"}
                         </button>
                       </td>
 

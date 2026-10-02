@@ -70,7 +70,7 @@ export function Automations() {
       title: "Continuous Scraping Live Heartbeat",
       category: "Live Patrol",
       trigger: "Event: Continuous Scout active on dashboard",
-      action: "Periodic 35-second rotation scan across 59 curated feeds",
+      action: "Periodic 35-second rotation scan across curated feeds",
       isActive: true,
       lastRunAt: Date.now() - 35000,
       executionCount: 312,

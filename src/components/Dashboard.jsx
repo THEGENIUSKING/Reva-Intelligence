@@ -75,11 +75,16 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
     return map;
   }, [recentFindings]);
 
+  const availableSectors = useMemo(() => {
+    const arr = Object.keys(sectorCounts).sort();
+    return ["All Sectors", ...arr];
+  }, [sectorCounts]);
+
   const metrics = [
     { label: "Benchmark Reports", value: counts.benchmarks, route: "benchmark", icon: "insights", desc: "Sourced Precedent Reports" },
-    { label: "Active Scout Sources", value: overview?.activeEmergingSources + overview?.activePolicySources || 50, route: "sources", icon: "travel_explore", desc: "Dual Approved Feeds" },
-    { label: "Articles Ingested (24h)", value: overview?.articlesLastDay || 18, route: "scraping", icon: "feed", desc: "Auto-Scraped Signals" },
-    { label: "New Idea Candidates", value: overview?.ideasLastDay || 6, route: "scraping", icon: "lightbulb", desc: "7-Criteria Filtered" },
+    { label: "Active Scout Sources", value: (overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0), route: "sources", icon: "travel_explore", desc: "Dual Approved Feeds" },
+    { label: "Articles Ingested (24h)", value: overview?.articlesLastDay || 0, route: "scraping", icon: "feed", desc: "Auto-Scraped Signals" },
+    { label: "New Idea Candidates", value: overview?.ideasLastDay || 0, route: "scraping", icon: "lightbulb", desc: "7-Criteria Filtered" },
   ];
 
   return (
@@ -171,7 +176,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
           </div>
           <h2 className="mt-3 text-lg font-bold text-on-surface font-headline">Continuous Scout & Viability Patrol</h2>
           <p className="mt-1 text-xs leading-relaxed text-secondary min-h-10">
-            Automated patrol across 59 curated publications and Nigerian regulators (CBN, SEC, NERC, FIRS) with instant sector classification and Vanta duplicate outcomes.
+            Automated patrol across {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0)) || 0} curated publications and Nigerian regulators (CBN, SEC, NERC, FIRS) with instant sector classification and Vanta duplicate outcomes.
           </p>
           <button
             type="button"
@@ -231,7 +236,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
           {/* Sector Chips */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-secondary mr-1">Sector:</span>
-            {CANONICAL_SECTORS.slice(0, 6).map((sec) => {
+            {availableSectors.slice(0, 6).map((sec) => {
               const count = sec === "All Sectors" ? recentFindings.length : (sectorCounts[sec] || 0);
               return (
                 <button
@@ -257,7 +262,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
               className="px-2 py-1 rounded-full text-[11px] font-medium bg-surface-lowest text-secondary border border-amber-900/10 focus:outline-none"
             >
               <option value="All Sectors">More Sectors...</option>
-              {CANONICAL_SECTORS.slice(6).map((sec) => (
+              {availableSectors.slice(6).map((sec) => (
                 <option key={sec} value={sec}>{sec}</option>
               ))}
             </select>
