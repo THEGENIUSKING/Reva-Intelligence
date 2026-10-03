@@ -303,7 +303,8 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
             flowType: activeFlow,
           });
         } catch (convexErr) {
-          console.warn("Convex research action unavailable:", convexErr);
+          console.error("Convex research action failed:", convexErr);
+          throw convexErr;
         }
       }
 
