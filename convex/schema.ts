@@ -186,11 +186,13 @@ export default defineSchema({
     processedAt:   v.number(),
     status:        v.string(), // "processed" | "skipped" | "duplicate"
     publishedDate: v.optional(v.string()),
+    isArchived:    v.optional(v.boolean()),
   })
     .index("by_urlHash",     ["urlHash"])
     .index("by_contentHash", ["contentHash"])
     .index("by_sourceType",  ["sourceType"])
-    .index("by_processedAt", ["processedAt"]),
+    .index("by_processedAt", ["processedAt"])
+    .index("by_isArchived_processedAt", ["isArchived", "processedAt"]),
 
   scoutArticleSessions: defineTable({
     runId: v.id("scoutRuns"),
@@ -200,10 +202,12 @@ export default defineSchema({
     isNewInSession: v.boolean(),
     sessionDate: v.string(),
     processedAt: v.number(),
+    isArchived: v.optional(v.boolean()),
   })
     .index("by_runId_and_urlHash", ["runId", "urlHash"])
     .index("by_processedAt", ["processedAt"])
-    .index("by_scoutType_and_processedAt", ["scoutType", "processedAt"]),
+    .index("by_scoutType_and_processedAt", ["scoutType", "processedAt"])
+    .index("by_isArchived_processedAt", ["isArchived", "processedAt"]),
 
   // ── 4. CURATED SOURCES & REGULATORY REGISTRY ─────────────────────────────
   sourceRegistry: defineTable({

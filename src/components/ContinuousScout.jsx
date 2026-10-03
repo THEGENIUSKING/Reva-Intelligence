@@ -20,6 +20,8 @@ export function ContinuousScout({ onNavigate }) {
   const [ideasTypeFilter, setIdeasTypeFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewingArchived, setViewingArchived] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [gradeFilter, setGradeFilter] = useState("all"); // 'all' | 'A*' | 'A' | 'B' | 'C' | 'D'
 
   // Pagination (10 per batch)
@@ -46,10 +48,11 @@ export function ContinuousScout({ onNavigate }) {
     results: recentArticles,
     status: articleArchiveStatus,
     loadMore: loadMoreArticles,
-  } = usePaginatedQuery(api.scouting.listRecentArticlesPage, {}, { initialNumItems: 10 });
+  } = usePaginatedQuery(api.scouting.listRecentArticlesPage, { isArchived: viewingArchived ? true : false }, { initialNumItems: 10 });
   const initiatives = useQuery(api.initiatives.listInitiatives, { limit: 50 }) || [];
 
   const runNow = useAction(api.scouting.runNow);
+  const archiveArticles = useMutation(api.scouting.archiveArticles);
   const analyzeArticle = useAction(api.scouting.analyzeArticle);
   const checkVantaDuplicates = useAction(api.vanta.checkDuplicates);
   const recoverStaleRuns = useMutation(api.scouting.recoverStaleRuns);
@@ -786,9 +789,65 @@ export function ContinuousScout({ onNavigate }) {
         </div>
       )}
 
+      
       {/* TAB 4: Crawled Articles Archive (Session History) */}
       {activeTab === "articles" && (
         <div className="space-y-3">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewingArchived(false)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${!viewingArchived ? "bg-primary text-white shadow-xs" : "bg-surface-low text-secondary hover:text-primary"}`}
+              >
+                Active Articles
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingArchived(true)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewingArchived ? "bg-primary text-white shadow-xs" : "bg-surface-low text-secondary hover:text-primary"}`}
+              >
+                Archived
+              </button>
+            </div>
+            {!viewingArchived && (
+              <div className="flex items-center gap-2">
+                <select
+                  id="archiveSelect"
+                  className="bg-white border border-amber-900/20 text-secondary text-xs rounded-lg px-2 py-1.5 outline-none"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Archive Old Articles...</option>
+                  <option value="2">Older than 2 Days</option>
+                  <option value="7">Older than 7 Days</option>
+                  <option value="30">Older than 30 Days</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const sel = document.getElementById("archiveSelect").value;
+                    if (!sel) return;
+                    setIsArchiving(true);
+                    try {
+                      const count = await archiveArticles({ olderThanDays: Number(sel) });
+                      setNotice(`Successfully archived ${count} old articles from the active view.`);
+                    } catch(e) {
+                      setError(e.message);
+                    } finally {
+                      setIsArchiving(false);
+                      document.getElementById("archiveSelect").value = "";
+                    }
+                  }}
+                  disabled={isArchiving}
+                  className="px-3 py-1.5 rounded-lg bg-surface-low border border-amber-900/20 hover:bg-white text-xs font-bold text-secondary flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                  {isArchiving ? "Moving..." : "Archive Selected"}
+                </button>
+              </div>
+            )}
+          </div>
+
           {paginatedArticles.length ? (
             paginatedArticles.map((art, idx) => (
               <article
