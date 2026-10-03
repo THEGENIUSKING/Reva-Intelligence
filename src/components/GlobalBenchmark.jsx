@@ -372,6 +372,10 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
     }
   };
 
+  if (benchmarks === undefined) {
+    return <PageLoader label="Loading Benchmarks..." />;
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">
       {/* Top Banner - Compact Vanta Fluid Design */}

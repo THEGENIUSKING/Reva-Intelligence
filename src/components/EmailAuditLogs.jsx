@@ -51,6 +51,10 @@ export function EmailAuditLogs({ emailLogs }) {
     ["issue", `Issues · ${metrics.issues}`],
   ];
 
+  if (emailLogs === undefined) {
+    return <PageLoader label="Loading Logs..." />;
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-amber-900/10 pb-4">

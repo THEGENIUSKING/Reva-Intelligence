@@ -31,9 +31,6 @@ export function Automations() {
   const canLoad = identity?.authorized === true;
   const automationsList = useQuery(api.automations.listAutomations, canLoad ? {} : "skip");
 
-  if (automationsList === undefined) {
-    return <PageLoader label="Loading Automations..." />;
-  }
 
   const recentRuns = useQuery(api.scouting.listRecentRuns, canLoad ? { limit: 5 } : "skip") || [];
   const emailLogs = useQuery(api.emailLogs.listLogs, canLoad ? {} : "skip") || [];
@@ -91,6 +88,10 @@ export function Automations() {
     setIntervalMinutes(1440);
     setShowCreateModal(false);
   };
+
+  if (automationsList === undefined) {
+    return <PageLoader label="Loading Automations..." />;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">

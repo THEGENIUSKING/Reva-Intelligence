@@ -37,9 +37,6 @@ export function ContinuousScout({ onNavigate }) {
   const overview = useQuery(api.scouting.getOverview, { now });
   const recentRuns = useQuery(api.scouting.listRecentRuns, { limit: 1 }) || [];
   
-  if (overview === undefined) {
-    return <PageLoader label="Loading Scout Data..." />;
-  }
 
   const latestRun = recentRuns[0];
   const runStatusLabel = isRunning || latestRun?.status === "running"
@@ -339,6 +336,10 @@ export function ContinuousScout({ onNavigate }) {
       ? screenedOpportunities.length
       : filteredArticles.length) / PAGE_SIZE
   ) || 1;
+
+  if (overview === undefined) {
+    return <PageLoader label="Loading Scout Data..." />;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">

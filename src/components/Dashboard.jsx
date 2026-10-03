@@ -42,9 +42,6 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
 
   // Time filter calculations
   
-  if (overview === undefined || initiatives === undefined || recentFindings === undefined) {
-    return <PageLoader label="Loading Overview..." />;
-  }
 
   const now = Date.now();
   const timeThresholds = {
@@ -112,6 +109,10 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
     { label: "Articles Ingested (24h)", value: overview?.articlesLastDay || 0, route: "scraping", icon: "feed", desc: "Auto-Scraped Signals" },
     { label: "New Scout Findings", value: overview?.ideasLastDay || 0, route: "scraping", icon: "lightbulb", desc: "Gemini-Derived Signals" },
   ];
+
+  if (overview === undefined || initiatives === undefined || recentFindings === undefined) {
+    return <PageLoader label="Loading Overview..." />;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">

@@ -33,9 +33,6 @@ import { api } from "../../convex/_generated/api";
 export function SourceRegistry() {
   const dbSources = useQuery(api.sources.listSources, {});
 
-  if (dbSources === undefined) {
-    return <PageLoader label="Loading Sources..." />;
-  }
 
   const sources = dbSources.length > 0 ? dbSources : [];
 
@@ -222,6 +219,10 @@ export function SourceRegistry() {
       alert("Failed to toggle signoff: " + err.message);
     }
   };
+
+  if (dbSources === undefined) {
+    return <PageLoader label="Loading Sources..." />;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">
