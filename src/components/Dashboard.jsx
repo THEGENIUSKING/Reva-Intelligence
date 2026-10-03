@@ -1,3 +1,4 @@
+import { PageLoader } from "./Loader";
 import React, { useState, useMemo, useEffect } from "react";
 
 export const CANONICAL_SECTORS = [

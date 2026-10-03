@@ -1,3 +1,4 @@
+import { PageLoader } from "./Loader";
 import React, { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 15;
