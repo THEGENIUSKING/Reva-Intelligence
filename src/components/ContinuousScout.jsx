@@ -6,7 +6,7 @@ import { ASSESSMENT_GUIDE_CRITERIA } from "./GlobalBenchmark";
 
 export function ContinuousScout({ onNavigate }) {
   const [now, setNow] = useState(() => Date.now());
-  const [activeTab, setActiveTab] = useState("emerging"); // 'emerging' | 'policy' | 'screened' | 'articles'
+  const [activeTab, setActiveTab] = useState("ideas"); // 'emerging' | 'policy' | 'screened' | 'articles'
   const [scoutStatus, setScoutStatus] = useState("Scheduled");
   const [isRunning, setIsRunning] = useState(false);
   const [analyzingId, setAnalyzingId] = useState("");
@@ -17,6 +17,7 @@ export function ContinuousScout({ onNavigate }) {
   // Filters & Search
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
   const [industryFilter, setIndustryFilter] = useState("All Industries");
+  const [ideasTypeFilter, setIdeasTypeFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all"); // 'all' | 'A*' | 'A' | 'B' | 'C' | 'D'
@@ -40,7 +41,7 @@ export function ContinuousScout({ onNavigate }) {
     : latestRun?.status === "partial"
     ? "Partial"
     : scoutStatus;
-  const recentFindings = useQuery(api.scouting.listRecentFindings, { limit: 60 }) || [];
+  const { results: recentFindings, status: findingsStatus, loadMore: loadMoreFindings } = usePaginatedQuery(api.scouting.listFindingsPage, { typeFilter: ideasTypeFilter === "all" ? undefined : ideasTypeFilter }, { initialNumItems: 20 });
   const {
     results: recentArticles,
     status: articleArchiveStatus,
@@ -247,6 +248,35 @@ export function ContinuousScout({ onNavigate }) {
   }, [recentFindings, timeFilter, sectorFilter, industryFilter, searchQuery]);
 
   // Filtered Screened Opportunities (7-Criteria)
+
+  const filteredFindings = useMemo(() => {
+    const threshold = timeThresholds[timeFilter] || 0;
+    return (recentFindings || []).filter(item => {
+      const itemTime = item.createdAt || 0;
+      if (threshold > 0 && itemTime < threshold) return false;
+      if (sectorFilter !== "All Sectors" && normalizeSector(item.sector) !== sectorFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return `${item.ideaName} ${item.summary} ${item.sourceName}`.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [recentFindings, timeFilter, sectorFilter, searchQuery]);
+
+  const findingsByDay = useMemo(() => {
+    const groups = {};
+    filteredFindings.forEach(item => {
+      const day = item.createdAt ? new Date(item.createdAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : "Unknown Date";
+      if (!groups[day]) groups[day] = [];
+      groups[day].push(item);
+    });
+    return Object.entries(groups).sort((a, b) => {
+      if (a[0] === "Unknown Date") return 1;
+      if (b[0] === "Unknown Date") return -1;
+      return new Date(b[0]).getTime() - new Date(a[0]).getTime();
+    });
+  }, [filteredFindings]);
+
   const screenedOpportunities = useMemo(() => {
     const threshold = timeThresholds[timeFilter] || 0;
     return initiatives
@@ -359,17 +389,17 @@ export function ContinuousScout({ onNavigate }) {
             <span className="text-[10px] text-secondary">Configured sources in the registry</span>
           </div>
 
-          <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">ARTICLES INGESTED (24H)</span>
+          <button onClick={() => setActiveTab("articles")} className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10 text-left hover:bg-surface-low transition-colors w-full">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block hover:text-primary">ARTICLES INGESTED (24H) &rarr;</span>
             <span className="font-headline font-bold text-lg text-primary mt-0.5 block">{overview?.articlesLastDay ?? 0} Captured</span>
             <span className="text-[10px] text-secondary">{overview?.geminiConfigured ? "Gemini enabled" : "Gemini not configured"}</span>
-          </div>
+          </button>
 
-          <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">IDEAS SURFACED (24H)</span>
+          <button onClick={() => setActiveTab("ideas")} className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10 text-left hover:bg-surface-low transition-colors w-full">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block hover:text-primary">IDEAS SURFACED (24H) &rarr;</span>
             <span className="font-headline font-bold text-lg text-emerald-600 mt-0.5 block">{overview?.ideasLastDay ?? 0} Opportunities</span>
             <span className="text-[10px] text-secondary">New AI-derived findings</span>
-          </div>
+          </button>
 
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">DEDUPLICATION ENGINE</span>

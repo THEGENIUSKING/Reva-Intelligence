@@ -144,6 +144,21 @@ export const listRecentRuns = query({
   },
 });
 
+export const listFindingsPage = query({
+  args: { paginationOpts: paginationOptsValidator, typeFilter: v.optional(v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"))) },
+  returns: paginationResultValidator(findingDoc),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    let q = ctx.db.query("scoutFindings");
+    if (args.typeFilter) {
+      return await q.withIndex("by_scoutType_createdAt", q => q.eq("scoutType", args.typeFilter!)).order("desc").paginate(args.paginationOpts);
+    } else {
+      return await q.withIndex("by_createdAt").order("desc").paginate(args.paginationOpts);
+    }
+  }
+});
+
 export const listRecentFindings = query({
   args: { limit: v.optional(v.number()) },
   returns: v.array(findingDoc),
@@ -234,7 +249,7 @@ export const getOverview = query({
   args: { now: v.number() },
   returns: v.object({
     activeEmergingSources: v.number(), activePolicySources: v.number(), registeredSources: v.number(),
-    articlesLastDay: v.number(), ideasLastDay: v.number(), geminiConfigured: v.boolean(),
+    articlesLastDay: v.number(), ideasLastDay: v.number(), geminiConfigured: v.boolean(), totalFindingsAllTime: v.number(),
     vantaReadApiConfigured: v.boolean(), resendConfigured: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -250,7 +265,8 @@ export const getOverview = query({
       activeEmergingSources: active.filter((source) => source.tier === "tier_a_emerging" || source.tier === "tier_b_global").length,
       activePolicySources: active.filter((source) => source.tier === "nigeria_regulator" || source.tier === "nigeria_legal").length,
       registeredSources: sources.length,
-      articlesLastDay: recentArticles.length,
+      totalFindingsAllTime: (await ctx.db.query("scoutFindings").collect()).length,
+        articlesLastDay: recentArticles.length,
       ideasLastDay: recentIdeas.length,
       geminiConfigured: Boolean(env.GEMINI_API_KEY),
       vantaReadApiConfigured: Boolean(env.VANTA_API_KEY && env.VANTA_API_BASE_URL),
