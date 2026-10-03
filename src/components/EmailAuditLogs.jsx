@@ -2,6 +2,7 @@ import { PageLoader } from "./Loader";
 import React, { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 15;
+const EMPTY_LOGS = [];
 
 function emailState(status = "") {
   const value = status.toLowerCase();
@@ -12,16 +13,18 @@ function emailState(status = "") {
 }
 
 export function EmailAuditLogs({ emailLogs }) {
+  const hasLoadedLogs = emailLogs !== undefined;
+  const logs = emailLogs ?? EMPTY_LOGS;
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   const metrics = useMemo(() => ({
-    delivered: emailLogs.filter((item) => emailState(item.status) === "delivered").length,
-    pending: emailLogs.filter((item) => emailState(item.status) === "pending").length,
-    issues: emailLogs.filter((item) => emailState(item.status) === "issue").length,
-  }), [emailLogs]);
+    delivered: logs.filter((item) => emailState(item.status) === "delivered").length,
+    pending: logs.filter((item) => emailState(item.status) === "pending").length,
+    issues: logs.filter((item) => emailState(item.status) === "issue").length,
+  }), [logs]);
 
   const filteredLogs = useMemo(() => {
     const now = Date.now();
@@ -32,26 +35,26 @@ export function EmailAuditLogs({ emailLogs }) {
       all: 0,
     };
     const query = search.trim().toLowerCase();
-    return emailLogs.filter((log) => {
+    return logs.filter((log) => {
       if (statusFilter !== "all" && emailState(log.status) !== statusFilter) return false;
       if (thresholds[dateFilter] && log.dispatchedAt < thresholds[dateFilter]) return false;
       if (query && !`${log.initiativeName} ${log.recipient} ${log.subject} ${log.status}`.toLowerCase().includes(query)) return false;
       return true;
     });
-  }, [emailLogs, statusFilter, dateFilter, search]);
+  }, [logs, statusFilter, dateFilter, search]);
 
   const totalPages = Math.ceil(filteredLogs.length / PAGE_SIZE) || 1;
   const pageLogs = filteredLogs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   useEffect(() => setPage(1), [statusFilter, dateFilter, search]);
 
   const filters = [
-    ["all", `All · ${emailLogs.length}`],
+    ["all", `All · ${logs.length}`],
     ["pending", `Queued · ${metrics.pending}`],
     ["delivered", `Delivered · ${metrics.delivered}`],
     ["issue", `Issues · ${metrics.issues}`],
   ];
 
-  if (emailLogs === undefined) {
+  if (!hasLoadedLogs) {
     return <PageLoader label="Loading Logs..." />;
   }
 
@@ -67,7 +70,7 @@ export function EmailAuditLogs({ emailLogs }) {
       </header>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Total attempts" value={emailLogs.length} tone="text-on-surface" />
+        <Metric label="Total attempts" value={logs.length} tone="text-on-surface" />
         <Metric label="Delivered" value={metrics.delivered} tone="text-emerald-700" />
         <Metric label="Queued / accepted" value={metrics.pending} tone="text-amber-700" />
         <Metric label="Delivery issues" value={metrics.issues} tone="text-red-700" />

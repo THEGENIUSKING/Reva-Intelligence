@@ -34,7 +34,9 @@ export function SourceRegistry() {
   const dbSources = useQuery(api.sources.listSources, {});
 
 
-  const sources = dbSources.length > 0 ? dbSources : [];
+  // Convex queries are undefined while their first result is loading. Keep the
+  // component's hooks mounted consistently until the query resolves below.
+  const sources = dbSources?.length ? dbSources : [];
 
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("All Sectors");

@@ -164,6 +164,8 @@ function CrawledArticleEvidence({ report }) {
 }
 
 export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, onUploadDocument }) {
+  const hasLoadedBenchmarks = benchmarks !== undefined;
+  const savedBenchmarks = benchmarks ?? [];
   const [activeFlow, setActiveFlow] = useState("flow4a_benchmark"); // 'flow4a_benchmark' | 'flow4b_gap_initiatives'
   const [step, setStep] = useState(1);
   const [inputText, setInputText] = useState("");
@@ -183,8 +185,8 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
   const screenBatch = useAction(api.screening.screenBatch);
 
   const selectedReport = useMemo(
-    () => localReport || benchmarks.find((report) => report._id === selectedId) || null,
-    [benchmarks, localReport, selectedId],
+    () => localReport || savedBenchmarks.find((report) => report._id === selectedId) || null,
+    [savedBenchmarks, localReport, selectedId],
   );
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
@@ -372,7 +374,7 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
     }
   };
 
-  if (benchmarks === undefined) {
+  if (!hasLoadedBenchmarks) {
     return <PageLoader label="Loading Benchmarks..." />;
   }
 
@@ -1058,16 +1060,16 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
             <h2 className="text-base font-bold text-on-surface font-headline">Saved Benchmark Reports</h2>
             <p className="text-xs text-secondary">Historical precedent syntheses and gap analyses.</p>
           </div>
-          <span className="text-xs text-secondary font-semibold">{benchmarks.length} saved</span>
+          <span className="text-xs text-secondary font-semibold">{savedBenchmarks.length} saved</span>
         </div>
 
-        {!benchmarks.length ? (
+        {!savedBenchmarks.length ? (
           <p className="mt-3 rounded-lg bg-surface-low p-3 text-xs text-secondary text-center">
             No saved reports yet. Run your first benchmark above to save reports here.
           </p>
         ) : (
           <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-            {benchmarks.map((report) => (
+            {savedBenchmarks.map((report) => (
               <button
                 key={report._id}
                 type="button"

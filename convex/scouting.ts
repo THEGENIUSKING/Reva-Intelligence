@@ -191,15 +191,16 @@ export const listRecentArticles = query({
 });
 
 export const listRecentArticlesPage = query({
-  args: { paginationOpts: paginationOptsValidator },
+  args: { paginationOpts: paginationOptsValidator, isArchived: v.optional(v.boolean()) },
   returns: paginationResultValidator(articleArchiveDoc),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
-    const page = await ctx.db.query("scoutArticleSessions")
-      .withIndex("by_processedAt")
-      .order("desc")
-      .paginate(args.paginationOpts);
+    const sessions = ctx.db.query("scoutArticleSessions");
+    const filteredSessions = args.isArchived === true
+      ? sessions.withIndex("by_isArchived_processedAt", (q) => q.eq("isArchived", true))
+      : sessions.withIndex("by_isArchived_processedAt", (q) => q.eq("isArchived", undefined));
+    const page = await filteredSessions.order("desc").paginate(args.paginationOpts);
     const rows = await Promise.all(page.page.map(async (session) => {
       const article = await ctx.db.get(session.articleId);
       if (!article) return null;
@@ -225,6 +226,28 @@ export const listRecentArticlesPage = query({
       };
     }));
     return { ...page, page: rows.filter((row): row is NonNullable<typeof row> => row !== null) };
+  },
+});
+
+export const archiveArticles = mutation({
+  args: { olderThanDays: v.number() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    if (!Number.isFinite(args.olderThanDays) || args.olderThanDays < 0) {
+      throw new Error("Archive age must be a non-negative number of days.");
+    }
+
+    const cutoff = Date.now() - args.olderThanDays * 24 * 60 * 60 * 1000;
+    const sessions = await ctx.db.query("scoutArticleSessions")
+      .withIndex("by_isArchived_processedAt", (q) => q.eq("isArchived", undefined).lte("processedAt", cutoff))
+      .take(100);
+
+    for (const session of sessions) {
+      await ctx.db.patch(session._id, { isArchived: true });
+    }
+    return sessions.length;
   },
 });
 
