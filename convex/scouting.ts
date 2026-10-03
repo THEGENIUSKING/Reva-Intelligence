@@ -320,7 +320,7 @@ export const analyzeArticle = action({
       if (response.ok) break;
       const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
       if (!retryable || attempt === 4) throw new Error(`Gemini article analysis returned HTTP ${response.status}. The article is still available below.`);
-      const delay = response.status === 429 ? 15000 : 2000;
+      const delay = response.status === 429 ? 60000 : 2000;
       await new Promise(r => setTimeout(r, delay));
     }
     if (!response?.ok) throw new Error("Gemini article analysis failed after retrying.");
@@ -784,7 +784,7 @@ async function classifyScoutedArticles(articles: ScoutArticle[], type: ScoutType
     if (response.ok) break;
     const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
     if (!retryable || attempt === 4) throw new Error(`Gemini scout classification returned HTTP ${response.status}`);
-    const delay = response.status === 429 ? 15000 : 2000;
+    const delay = response.status === 429 ? 60000 : 2000;
     await new Promise(r => setTimeout(r, delay));
   }
   if (!response?.ok) throw new Error("Gemini scout classification failed.");

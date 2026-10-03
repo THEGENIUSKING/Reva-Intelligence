@@ -271,7 +271,7 @@ async function assessCandidate(key: string, candidate: { ideaName: string; secto
       throw new Error(`Gemini screening returned HTTP ${response.status} after ${attempt + 1} attempt(s). ${detail}`);
     }
     const retryAfter = Number(response.headers.get("retry-after"));
-    const delay = response.status === 429 ? 15000 : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
+    const delay = response.status === 429 ? 60000 : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
   if (!response?.ok) throw new Error("Gemini screening failed after retrying transient errors.");
