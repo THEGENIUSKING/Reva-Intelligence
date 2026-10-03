@@ -27,10 +27,16 @@ function getSourceIndustry(source) {
 }
 
 import { useQuery, useMutation } from "convex/react";
+import { PageLoader } from "./Loader";
 import { api } from "../../convex/_generated/api";
 
 export function SourceRegistry() {
-  const dbSources = useQuery(api.sources.listSources, {}) || [];
+  const dbSources = useQuery(api.sources.listSources, {});
+
+  if (dbSources === undefined) {
+    return <PageLoader label="Loading Sources..." />;
+  }
+
   const sources = dbSources.length > 0 ? dbSources : [];
 
   const [categoryFilter, setCategoryFilter] = useState("all");

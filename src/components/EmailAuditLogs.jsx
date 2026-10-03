@@ -10,7 +10,7 @@ function emailState(status = "") {
   return "other";
 }
 
-export function EmailAuditLogs({ emailLogs = [] }) {
+export function EmailAuditLogs({ emailLogs }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [search, setSearch] = useState("");

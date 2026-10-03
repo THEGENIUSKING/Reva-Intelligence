@@ -35,6 +35,11 @@ export function ContinuousScout({ onNavigate }) {
   // Convex Queries & Actions
   const overview = useQuery(api.scouting.getOverview, { now });
   const recentRuns = useQuery(api.scouting.listRecentRuns, { limit: 1 }) || [];
+  
+  if (overview === undefined) {
+    return <PageLoader label="Loading Scout Data..." />;
+  }
+
   const latestRun = recentRuns[0];
   const runStatusLabel = isRunning || latestRun?.status === "running"
     ? "In Progress"
@@ -439,7 +444,7 @@ export function ContinuousScout({ onNavigate }) {
             { id: "emerging", label: "Emerging Tech Signals", count: emergingFindings.length, icon: "public" },
             { id: "policy", label: "Nigerian Policy & Regulatory", count: policyFindings.length, icon: "gavel" },
             { id: "screened", label: "7-Criteria Screened Ideas", count: screenedOpportunities.length, icon: "verified" },
-            { id: "articles", label: "Crawled Articles Archive", count: filteredArticles.length, icon: "article" },
+            { id: "articles", label: "Crawled Articles Archive", count: overview?.totalArticlesAllTime || 0, icon: "article" },
           ].map((tab) => (
             <button
               key={tab.id}

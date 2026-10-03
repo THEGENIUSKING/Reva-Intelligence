@@ -34,11 +34,11 @@ export function useRevaData(enabled = true) {
 
   return {
     isLiveConvex: true,
-    benchmarks: benchmarks || [],
-    initiatives: initiatives || [],
-    emailLogs: emailLogs || [],
+    benchmarks: benchmarks,
+    initiatives: initiatives,
+    emailLogs: emailLogs,
     scoutOverview,
-    scoutFindings: scoutFindings || [],
+    scoutFindings: scoutFindings,
     runBenchmark,
     extractBrief,
     uploadDocument,

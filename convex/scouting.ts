@@ -249,7 +249,7 @@ export const getOverview = query({
   args: { now: v.number() },
   returns: v.object({
     activeEmergingSources: v.number(), activePolicySources: v.number(), registeredSources: v.number(),
-    articlesLastDay: v.number(), ideasLastDay: v.number(), geminiConfigured: v.boolean(), totalFindingsAllTime: v.number(),
+    articlesLastDay: v.number(), ideasLastDay: v.number(), geminiConfigured: v.boolean(), totalFindingsAllTime: v.number(), totalArticlesAllTime: v.number(),
     vantaReadApiConfigured: v.boolean(), resendConfigured: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -266,6 +266,7 @@ export const getOverview = query({
       activePolicySources: active.filter((source) => source.tier === "nigeria_regulator" || source.tier === "nigeria_legal").length,
       registeredSources: sources.length,
       totalFindingsAllTime: (await ctx.db.query("scoutFindings").collect()).length,
+        totalArticlesAllTime: (await ctx.db.query("scoutArticleSessions").withIndex("by_isArchived_processedAt", q => q.eq("isArchived", undefined)).collect()).length,
         articlesLastDay: recentArticles.length,
       ideasLastDay: recentIdeas.length,
       geminiConfigured: Boolean(env.GEMINI_API_KEY),

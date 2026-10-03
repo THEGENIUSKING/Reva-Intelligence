@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { PageLoader } from "./Loader";
 import { api } from "../../convex/_generated/api";
 
 const platformPipelines = [
@@ -28,7 +29,12 @@ const platformPipelines = [
 export function Automations() {
   const identity = useQuery(api.users.currentIdentity);
   const canLoad = identity?.authorized === true;
-  const automationsList = useQuery(api.automations.listAutomations, canLoad ? {} : "skip") || [];
+  const automationsList = useQuery(api.automations.listAutomations, canLoad ? {} : "skip");
+
+  if (automationsList === undefined) {
+    return <PageLoader label="Loading Automations..." />;
+  }
+
   const recentRuns = useQuery(api.scouting.listRecentRuns, canLoad ? { limit: 5 } : "skip") || [];
   const emailLogs = useQuery(api.emailLogs.listLogs, canLoad ? {} : "skip") || [];
   const toggleMutation = useMutation(api.automations.toggleAutomation);

@@ -162,7 +162,7 @@ function CrawledArticleEvidence({ report }) {
   );
 }
 
-export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmark, onUploadDocument }) {
+export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, onUploadDocument }) {
   const [activeFlow, setActiveFlow] = useState("flow4a_benchmark"); // 'flow4a_benchmark' | 'flow4b_gap_initiatives'
   const [step, setStep] = useState(1);
   const [inputText, setInputText] = useState("");

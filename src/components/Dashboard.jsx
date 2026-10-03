@@ -40,6 +40,11 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
   const PAGE_SIZE = 10;
 
   // Time filter calculations
+  
+  if (overview === undefined || initiatives === undefined || recentFindings === undefined) {
+    return <PageLoader label="Loading Overview..." />;
+  }
+
   const now = Date.now();
   const timeThresholds = {
     "24h": now - 24 * 60 * 60 * 1000,
