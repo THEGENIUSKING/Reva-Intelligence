@@ -29,7 +29,7 @@ export function normalizeSector(sectorStr = "") {
   return "Uncategorized";
 }
 
-export function Dashboard({ user, counts, overview, recentFindings = [], onNavigate }) {
+export function Dashboard({ user, counts, overview, initiatives, recentFindings = [], onNavigate }) {
   const [timeFilter, setTimeFilter] = useState("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
