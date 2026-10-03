@@ -293,13 +293,21 @@ export const analyzeArticle = action({
     const key = env.GEMINI_API_KEY;
     if (!key) throw new Error("Gemini is not configured for this Reva deployment.");
     const prompt = `Analyze this public article for a Nigerian venture scouting team. Return only JSON with summary (2-4 factual sentences), potentialIdea (one plausible initiative grounded in the text, or empty string if none), sector (closest canonical sector or Uncategorized), and industry (specific industry grounded in the text, or Uncategorized). Do not invent facts or claim Nigerian fit has been assessed.\n\nTitle: ${article.title}\nSource: ${article.sourceName}\nURL: ${article.url}\nArticle text:\n${articleContent}`;
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
-        response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 1200 } }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (!response.ok) throw new Error(`Gemini article analysis returned HTTP ${response.status}. The article is still available below.`);
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
+          response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 1200 } }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (response.ok) break;
+      const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === 4) throw new Error(`Gemini article analysis returned HTTP ${response.status}. The article is still available below.`);
+      const delay = response.status === 429 ? 15000 : 2000;
+      await new Promise(r => setTimeout(r, delay));
+    }
+    if (!response?.ok) throw new Error("Gemini article analysis failed after retrying.");
     const payload: unknown = await response.json();
     const text = getGeminiText(payload);
     const parsed = parseJson(text);
@@ -517,6 +525,7 @@ async function executeScout(ctx: ActionCtx, type: ScoutType, trigger: RunTrigger
     let ideasFound = 0;
     if (fresh.length && env.GEMINI_API_KEY) {
       for (let offset = 0; offset < fresh.length; offset += 20) {
+        if (offset > 0) await new Promise(r => setTimeout(r, 4000));
         const batch = fresh.slice(offset, offset + 20);
         try {
           const analyses = await classifyScoutedArticles(batch, type);
@@ -749,12 +758,20 @@ async function classifyScoutedArticles(articles: ScoutArticle[], type: ScoutType
   const key = env.GEMINI_API_KEY;
   if (!key || !articles.length) return [];
   const prompt = `Classify every public ${type === "emerging_tech" ? "technology and startup" : "Nigerian regulatory and policy"} article below. Return exactly one JSON array item for each input URL, including articles with no venture opportunity. Each item must contain articleUrl, summary (factual, 2-4 sentences), sector (one of Fintech & Financial Inclusion, AgriTech & Supply Chain, GovTech & Regulatory Tech, CleanTech & Energy Software, HealthTech & Life Sciences, Commerce, Retail & Logistics, InsurTech & Risk Analytics, Mobility & Smart Transit, Enterprise & Emerging Tech, or Uncategorized), industry (specific label grounded in the text, or Uncategorized), ideaName (empty string if no clear opportunity), and opportunitySummary (empty string if no clear opportunity). Never invent policy details, market statistics, companies, or facts.\n\n${articles.map((article, index) => `ARTICLE ${index + 1}\nTitle: ${article.title}\nURL: ${article.url}\nText: ${article.content}`).join("\n\n")}`;
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-    method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
-      response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 5000 } }),
-  });
-  if (!response.ok) throw new Error(`Gemini scout classification returned ${response.status}`);
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
+        response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 5000 } }),
+    });
+    if (response.ok) break;
+    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    if (!retryable || attempt === 4) throw new Error(`Gemini scout classification returned HTTP ${response.status}`);
+    const delay = response.status === 429 ? 15000 : 2000;
+    await new Promise(r => setTimeout(r, delay));
+  }
+  if (!response?.ok) throw new Error("Gemini scout classification failed.");
   const payload: unknown = await response.json();
   const text = getGeminiText(payload);
   if (!text) throw new Error("Gemini returned no article classifications.");

@@ -174,7 +174,8 @@ export const processScoutCandidates = internalAction({
     const ownerId = "reva-scout";
     for (const candidate of candidates.slice(0, 20)) {
       try {
-        const matches = portfolioAvailable ? portfolioMatch(candidate, portfolio) : [];
+        if (processed > 0) await new Promise(r => setTimeout(r, 3000));
+          const matches = portfolioAvailable ? portfolioMatch(candidate, portfolio) : [];
         const match = matches[0] || null;
         const duplicateMatches = matches.filter((item) => item.score >= 0.45);
         const assessment = await assessCandidate(key, candidate, scoutType);
@@ -257,7 +258,7 @@ async function assessCandidate(key: string, candidate: { ideaName: string; secto
   const criteria = revaCriteria.map(([id, max]) => id + "=" + max).join(", ");
   const prompt = "Assess this public-source idea for Nigerian market viability and Reva's seven investment criteria. Use Google Search for current Nigeria evidence. Do not invent facts; mark weak evidence Low. Viability dimension labels exactly: " + viabilityDimensions.join(", ") + ". Rate High, Medium, or Low. Reva criterion keys and maximum points: " + criteria + ". Return JSON only: {\"problem\":\"\", \"solution\":\"\", \"targetCustomer\":\"\", \"goToMarket\":\"\", \"viabilityVerdict\":\"\", \"dimensions\":[{\"dimension\":\"\", \"rating\":\"High|Medium|Low\", \"rationale\":\"\"}], \"criteriaScores\":{\"criterion\":{\"score\":0,\"rationale\":\"Evidence-based rationale\"}}, \"strengths\":[], \"risks\":[], \"recommendation\":\"\", \"differentiator\":\"\"}. This is preliminary AI judgment, not a final investment decision.\\nScout: " + scoutType + "\\nName: " + candidate.ideaName + "\\nSector: " + candidate.sector + "\\nSummary: " + candidate.summary + "\\nSource: " + candidate.articleUrl;
   let response: Response | null = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 6; attempt++) {
     response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt, tools: [{ type: "google_search" }], response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 4500 } }),
@@ -266,13 +267,11 @@ async function assessCandidate(key: string, candidate: { ideaName: string; secto
     if (response.ok) break;
     const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
     const detail = (await response.text()).slice(0, 300);
-    if (!retryable || attempt === 3) {
+    if (!retryable || attempt === 5) {
       throw new Error(`Gemini screening returned HTTP ${response.status} after ${attempt + 1} attempt(s). ${detail}`);
     }
     const retryAfter = Number(response.headers.get("retry-after"));
-    const delay = Number.isFinite(retryAfter) && retryAfter > 0
-      ? Math.min(retryAfter * 1000, 10000)
-      : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
+    const delay = response.status === 429 ? 15000 : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
   if (!response?.ok) throw new Error("Gemini screening failed after retrying transient errors.");
