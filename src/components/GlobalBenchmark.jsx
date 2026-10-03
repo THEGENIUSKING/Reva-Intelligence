@@ -4,7 +4,7 @@ import { normalizeSector, CANONICAL_SECTORS } from "./Dashboard";
 
 const blankBrief = {
   ideaName: "",
-  sector: "Fintech & Financial Inclusion",
+  sector: "Uncategorized",
   description: "",
   problem: "",
   solution: "",
@@ -130,6 +130,9 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
     setFileName(file.name);
 
     try {
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error("Files must be 10 MB or smaller.");
+      }
       let rawText = "";
       const extension = file.name.split(".").pop()?.toLowerCase();
 
@@ -158,8 +161,11 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
 
       // 3. Guaranteed client-side heuristic NLP fallback
       if (!extracted || !extracted.ideaName) {
+        if (extension === "pdf") {
+          throw new Error("Gemini could not extract this PDF. Try a text-based PDF or paste its contents into the description field.");
+        }
         extracted = extractBriefLocally(rawText || inputText);
-        setInfoMessage("Extracted successfully using high-precision on-device document intelligence.");
+        setInfoMessage("A draft was prepared locally. Review every field before running research.");
       }
 
       setBrief({ ...blankBrief, ...extracted });
@@ -233,19 +239,13 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
         }
       }
 
-      // If remote action succeeded
       if (result?.report) {
         setLocalReport(result.report);
         setSelectedId(result.id);
         setStep(3);
         return;
       }
-
-      // High-precision local benchmark fallback synthesis
-      const fallbackReport = synthesizeBenchmarkLocally(brief, activeFlow);
-      setLocalReport(fallbackReport);
-      setSelectedId(fallbackReport._id);
-      setStep(3);
+      throw new Error("Benchmark research returned no report. Check the Gemini configuration and try again.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Benchmark research failed.");
     } finally {
@@ -626,10 +626,10 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-secondary font-medium">Composite IC Score:</span>
                     <span className="font-headline font-bold text-2xl text-primary">
-                      {selectedReport.scoringCriteria?.totalScore ?? 81} / 100
+                      {typeof selectedReport.scoringCriteria?.totalScore === "number" ? selectedReport.scoringCriteria.totalScore : "—"} / 100
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-800">
-                      Grade {selectedReport.scoringCriteria?.grade || "A"} — PASS
+                      {selectedReport.scoringCriteria?.grade ? `Grade ${selectedReport.scoringCriteria.grade}` : "Not scored"}
                     </span>
                   </div>
                 </div>
@@ -637,8 +637,8 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {ASSESSMENT_GUIDE_CRITERIA.map((criterion) => {
                     const savedCriterion = selectedReport.scoringCriteria?.[criterion.id];
-                    const score = savedCriterion?.score ?? Math.round(criterion.weight * 0.8);
-                    const rationale = savedCriterion?.rationale || "Meets primary Trium investment considerations with defensible local operating feasibility.";
+                    const score = typeof savedCriterion?.score === "number" ? savedCriterion.score : null;
+                    const rationale = savedCriterion?.rationale || "No assessment was returned for this criterion.";
                     return (
                       <div
                         key={criterion.id}
@@ -653,14 +653,14 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                               <span>{criterion.title}</span>
                             </span>
                             <span className="text-xs font-bold text-primary font-headline">
-                              {score} / {criterion.weight}
+                              {score === null ? "Not scored" : `${score} / ${criterion.weight}`}
                             </span>
                           </div>
 
                           <div className="w-full bg-white rounded-full h-1.5 mb-2.5">
                             <div
                               className="bg-primary h-1.5 rounded-full transition-all duration-500"
-                              style={{ width: `${(score / criterion.weight) * 100}%` }}
+                              style={{ width: `${score === null ? 0 : (score / criterion.weight) * 100}%` }}
                             />
                           </div>
 
@@ -689,9 +689,9 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 <div className="flex items-center justify-between pb-3 border-b border-amber-900/10 mb-3">
                   <div>
                     <h3 className="text-base font-bold text-on-surface font-headline">Local & International Benchmarks</h3>
-                    <p className="text-xs text-secondary">Verified operating precedents across Nearby Africa, Emerging Peers, and Global Leaders.</p>
+                    <p className="text-xs text-secondary">Gemini Search-cited precedents across nearby African, emerging, and global markets. Validate claims at source.</p>
                   </div>
-                  <span className="text-xs font-bold text-primary">{selectedReport.benchmarks?.length || 0} Sourced Peers</span>
+                  <span className="text-xs font-bold text-primary">{selectedReport.benchmarks?.length ?? 0} Sourced Peers</span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -793,7 +793,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
               <div className="rounded-xl bg-primary/10 p-4 border border-primary/20 text-xs">
                 <span className="font-bold uppercase tracking-wider text-primary block mb-1">Trium Strategic Synthesis Verdict</span>
                 <p className="text-on-surface leading-relaxed font-medium">
-                  {selectedReport.blueprint?.triumStrategicVerdict || "High commercial potential. Proceed to Stage-1 incubation review."}
+                  {selectedReport.blueprint?.triumStrategicVerdict || "No strategic verdict was returned."}
                 </p>
               </div>
             </div>
@@ -809,29 +809,20 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                   <h3 className="text-base font-bold text-on-surface font-headline">Identified Nigerian Market & Operating Gaps</h3>
                 </div>
                 <p className="text-xs text-secondary leading-relaxed">
-                  Based on benchmarking against domestic and peer competitors, the following white-space opportunities were identified in Nigeria:
+                  Patterns returned from cited benchmark research. Validate each with local customer and market evidence.
                 </p>
-                <div className="grid gap-3 sm:grid-cols-3 mt-3 text-xs">
-                  <div className="p-3 rounded-lg bg-surface-low border border-amber-900/10">
-                    <span className="font-bold text-primary block mb-1">1. Distribution Gap</span>
-                    <p className="text-secondary leading-snug">Lack of verified offline agent networks in Tier-2 commercial trading hubs (Kano, Onitsha, Aba).</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-surface-low border border-amber-900/10">
-                    <span className="font-bold text-primary block mb-1">2. Trust & Escrow Gap</span>
-                    <p className="text-secondary leading-snug">Severe counterparty settlement default; over 80% of transactions still clear with informal cash.</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-surface-low border border-amber-900/10">
-                    <span className="font-bold text-primary block mb-1">3. Regulatory Tailwinds</span>
-                    <p className="text-secondary leading-snug">Recent CBN and SEC licensing sandboxes provide defensible compliance moat for early movers.</p>
-                  </div>
-                </div>
+                {selectedReport.blueprint?.recurringPatterns?.length ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-secondary">
+                    {selectedReport.blueprint.recurringPatterns.map((pattern, index) => <li key={index}>{pattern}</li>)}
+                  </ul>
+                ) : <p className="mt-3 text-xs text-secondary">No benchmark patterns were returned.</p>}
               </section>
 
               {/* Generated Initiative Ideas in Specified Format */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-on-surface font-headline">
-                    Synthesized Viable Initiative Ideas ({selectedReport.gapInitiativeIdeas?.length || 2} Concepts)
+                    Synthesized Viable Initiative Ideas ({selectedReport.gapInitiativeIdeas?.length ?? 0} Concepts)
                   </h3>
                   <span className="text-xs text-secondary font-medium">Formatted for Trium Idea Submission</span>
                 </div>
@@ -847,6 +838,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                           Concept 0{idx + 1} · {idea.category}
                         </span>
                         <h4 className="text-lg font-bold text-on-surface font-headline mt-1">{idea.ideaName}</h4>
+                        <span className="mt-2 block text-[10px] font-bold uppercase tracking-wider text-secondary">What is your idea?</span>
                         <p className="text-xs text-secondary italic mt-0.5">{idea.description}</p>
                       </div>
 
@@ -904,12 +896,17 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                         </span>
                         <p className="text-on-surface leading-relaxed">{idea.monetization}</p>
                       </div>
+
+                      <div className="p-3 rounded-lg bg-surface-low border border-amber-900/10">
+                        <span className="font-bold text-[10px] uppercase tracking-wider text-secondary block mb-1">Additional details</span>
+                        <p className="text-on-surface leading-relaxed">{idea.additionalDetails || "No additional details returned."}</p>
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-amber-900/10 text-[11px]">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-bold text-secondary">Value Drivers:</span>
-                        {(idea.valueDrivers || ["Ecosystem Growth", "Fintech Inclusion"]).map((v, i) => (
+                        {(idea.valueDrivers || []).map((v, i) => (
                           <span key={i} className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold text-[10px]">
                             {v}
                           </span>
@@ -982,189 +979,6 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
       </section>
     </div>
   );
-}
-
-// Local Fallback Synthesizer for Flow 4A and Flow 4B
-function synthesizeBenchmarkLocally(brief, flowType) {
-  const isFlow4b = flowType === "flow4b_gap_initiatives";
-  const now = Date.now();
-
-  const benchmarks = [
-    {
-      companyName: "TradeDepot",
-      country: "Nigeria",
-      regionTier: "Nearby Africa",
-      launchYear: "2016",
-      status: "Active",
-      fundingRaised: "$123M",
-      operationalScale: "100k+ retail merchants across West Africa",
-      businessModel: "B2B FMCG distribution with embedded credit",
-      customersAndRevenues: "100k+ merchants, high transaction volume",
-      roiAndViability: "Strong viability driven by credit margins",
-      keyPartners: "FMCG Brands, Commercial Banks",
-      lessonsLearned: "Asset-light fulfillment hubs outperform heavy vehicle fleets during currency devaluation.",
-      sourceUrl: "https://disrupt-africa.com",
-      sourceName: "Disrupt Africa",
-      confidence: "Verified source"
-    },
-    {
-      companyName: "GudangAda",
-      country: "Indonesia",
-      regionTier: "Emerging Peer",
-      launchYear: "2019",
-      status: "Active",
-      fundingRaised: "$135M",
-      operationalScale: "Over 500,000 mom-and-pop store endpoints",
-      businessModel: "B2B wholesale marketplace + instant escrow payments",
-      customersAndRevenues: "500k+ SME stores, scalable GMV",
-      roiAndViability: "Sustained growth through escrow lock-in",
-      keyPartners: "Local Logistics, Payment Gateways",
-      lessonsLearned: "Local micro-distributor trust requires field agents before self-serve mobile app adoption.",
-      sourceUrl: "https://dailysocial.id",
-      sourceName: "DailySocial ID",
-      confidence: "Verified source"
-    },
-    {
-      companyName: "Shopify B2B",
-      country: "United States",
-      regionTier: "Global Leader",
-      launchYear: "2006",
-      status: "Active",
-      fundingRaised: "$1.5B+",
-      operationalScale: "Global enterprise merchant network",
-      businessModel: "SaaS subscriptions + payment processing take rate",
-      lessonsLearned: "Modular developer ecosystem generates compounding moat against generic software.",
-      sourceUrl: "https://techcrunch.com",
-      sourceName: "TechCrunch",
-      confidence: "Verified source"
-    }
-  ];
-
-  const scoringCriteria = {
-    strategicAlignment: {
-      score: 17,
-      max: 20,
-      rationale: "Strong adherence to Coronation ecosystem digitization and financial inclusion pillars.",
-      considerations: ["Adheres to ideation themes", "Consistent with long-term vision", "Leverages existing rails"]
-    },
-    customerProblem: {
-      score: 18,
-      max: 20,
-      rationale: "Addresses acute cash collection leakage and informal counterparty risk with proven willingness to pay.",
-      considerations: ["Real and specific problem", "Willingness to adopt and pay", "Matches needs of target audience"]
-    },
-    solutionFit: {
-      score: 12,
-      max: 15,
-      rationale: "Significant addressable market in Nigeria with rapid customer acquisition runway.",
-      considerations: ["Increases customer base", "Market size attractive", "Deep market dynamics understanding"]
-    },
-    marketOpportunity: {
-      score: 12,
-      max: 15,
-      rationale: "Meaningfully improves trade transparency and introduces instant digital clearing.",
-      considerations: ["Unique vs competitors", "Meaningful process enhancement", "Significant economic impact"]
-    },
-    differentiation: {
-      score: 8,
-      max: 10,
-      rationale: "High switching cost once trade ledgers and warehouse receipts are established.",
-      considerations: ["Relevance longevity", "Defensible position", "Protected against disintermediation"]
-    },
-    sustainableAdvantage: {
-      score: 8,
-      max: 10,
-      rationale: "Readily accessible engineering talent with regulatory tailwinds from CBN and SEC.",
-      considerations: ["Resources to execute", "Easily acquire technology", "Clear execution path"]
-    },
-    feasibility: {
-      score: 8,
-      max: 10,
-      rationale: "High modularity allows adding trade financing, insurance, and FX settlement features.",
-      considerations: ["Extensible capabilities", "Easy expansion to adjacent markets"]
-    },
-    totalScore: 83,
-    grade: "A"
-  };
-
-  const gapInitiativeIdeas = [
-    {
-      ideaName: `${brief.ideaName} Escrow Gateway`,
-      description: "Digital escrow and automated invoice discounting gateway for informal distributors in Nigeria.",
-      category: brief.sector || "Fintech & Financial Inclusion",
-      problem: "Informal trade counterparties suffer 20%+ default losses and cannot obtain bank credit without collateral.",
-      solution: "Provide smart contract USSD/web escrow with instant NIP bank settlement upon verified goods receipt.",
-      similarSolutions: "TradeDepot and GudangAda in Indonesia; distinct focus on non-collateralized invoice clearing.",
-      targetCustomer: "Tier-2 wholesale aggregators, FMCG traders, and peri-urban merchants in Kano, Lagos, and Onitsha.",
-      goToMarket: "Direct partnership with wholesale market associations (Alaba, Dawanau) and commercial banks.",
-      valueDrivers: ["Deposit Float Growth", "SME Lending Pipeline", "Transaction Fee Volume"],
-      monetization: "1.25% transaction processing fee + 2.0% invoice discounting margin per 30-day cycle.",
-      additionalDetails: "Compliant with CBN Payments System Management guidelines.",
-      sourceLink: "https://disrupt-africa.com"
-    },
-    {
-      ideaName: `${brief.ideaName} Field Agent Telemetry`,
-      description: "Offline-first mobile telemetry kit enabling rural aggregators to verify physical quality before payment release.",
-      category: brief.sector || "AgriTech & Supply Chain",
-      problem: "Remote collection points lack stable internet and reliable testing tools, causing rampant adulteration.",
-      solution: "Low-power optical scanning app with local offline cache and cryptographic signature upload.",
-      similarSolutions: "Commodity inspection services by SGS, adapted for low-cost mobile smartphones.",
-      targetCustomer: "Commercial grain traders, food processors, and flour mills purchasing raw commodities.",
-      goToMarket: "B2B enterprise licensing with top FMCG manufacturers and agricultural cooperatives.",
-      valueDrivers: ["Supply Chain Quality Assurance", "B2B SaaS Revenue", "Farmer Traceability Data"],
-      monetization: "N50,000 monthly enterprise license per collection depot + N50 assay verification stamp fee.",
-      additionalDetails: "Fully functional in low-connectivity 2G/3G zones with batch synchronization.",
-      sourceLink: "https://dailysocial.id"
-    }
-  ];
-
-  return {
-    _id: "report_" + now,
-    createdAt: now,
-    ideaName: brief.ideaName || "Venture Initiative",
-    sector: brief.sector || "Fintech & Financial Inclusion",
-    description: brief.description || "Synthesized venture benchmark analysis.",
-    problem: brief.problem || "Structural market friction.",
-    solution: brief.solution || "Technology platform.",
-    targetCustomer: brief.targetCustomer || "Nigerian SMEs and enterprises.",
-    monetization: brief.monetization || "Subscription and transaction spread.",
-    flowType: flowType,
-    counts: {
-      total: benchmarks.length,
-      nearbyAfrica: 1,
-      emergingPeers: 1,
-      globalLeaders: 1,
-    },
-    benchmarks,
-    blueprint: {
-      whatToApply: [
-        {
-          title: "Tier-1 Embedded B2B Escrow",
-          recommendation: "Embed automated payment clearing directly into daily procurement workflows to lock in transaction float.",
-          parallelBenchmark: "GudangAda (Indonesia)"
-        },
-        {
-          title: "Asset-Light Franchise Nodes",
-          recommendation: "Partner with existing warehouse and truck operators rather than purchasing balance-sheet heavy assets.",
-          parallelBenchmark: "TradeDepot (Nigeria)"
-        }
-      ],
-      whatToAvoid: [
-        {
-          title: "Premature Consumer Credit Without Ledger History",
-          warning: "Avoid unsecured consumer lending until 90 days of positive merchant transaction volume is verified.",
-          pitfallReason: "Nigerian macro inflation and volatile consumer disposable income lead to severe NPL spikes."
-        }
-      ],
-      recurringPatterns: [
-        "Emerging market platforms start with high-touch merchant onboarding before achieving self-serve digital scale.",
-        "Monetization must blend sticky SaaS subscription with transaction-volume take rates."
-      ],
-      triumStrategicVerdict: "Strong strategic thesis for incubation. The venture aligns with Trium investment criteria and Coronation ecosystem strengths."
-    },
-    scoringCriteria: isFlow4b ? undefined : scoringCriteria,
-    gapInitiativeIdeas: isFlow4b ? gapInitiativeIdeas : undefined,
-  };
 }
 
 export default GlobalBenchmark;

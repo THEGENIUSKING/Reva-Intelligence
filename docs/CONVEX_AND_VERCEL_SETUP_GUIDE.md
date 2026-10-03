@@ -101,11 +101,13 @@ Reva is pre-configured with `vercel.json` and a custom deployment build pipeline
 |---|---|---|
 | `CONVEX_DEPLOY_KEY` | `prod:...` | Deploys Convex backend on production release |
 | `VITE_CONVEX_URL` | `https://<prod-deployment>.convex.cloud` | Connects React frontend to Convex |
-| `GEMINI_API_KEY` | Your Google AI Studio API Key (Free) | Zero-cost LLM synthesis |
-| `GROQ_API_KEY` | Your Groq API Key (Free) | Fallback high-speed reasoning |
-| `TAVILY_API_KEY` | Your Tavily Key (Free 1k/mo) | Emerging markets live search |
-| `RESEND_API_KEY` | Your Resend Key (Free 3k/mo) | Auto-email dispatch to DIT |
+| `GEMINI_API_KEY` | Server-side Gemini API key | Brief extraction, grounded benchmarking, article classification, and screening |
+| `VANTA_API_BASE_URL` | Vanta Convex site URL | Live Vanta portfolio read API |
+| `VANTA_API_KEY` | Read-scoped Vanta bearer key | Duplicate matching; no Idea Bank write-back |
+| `RESEND_API_KEY` | Server-side Resend API key | Queue screening alerts to DIT |
+| `RESEND_FROM_EMAIL` | Verified sender address | Required for DIT email delivery |
 | `DIT_NOTIFICATION_EMAIL` | `digital-incubation@trium.ng` | Official DIT notification inbox |
+| `REVA_ADMIN_EMAIL` | Reva administrator email | Approve or pause registered sources |
 
 4. Click **Deploy**. Vercel will run `scripts/vercel-build.mjs`, deploy the Convex server functions, and bundle the client.
 
@@ -120,25 +122,19 @@ vercel --prod
 
 ## 4. Local Demo Execution
 
-You can run the full interactive platform locally right now without waiting for cloud credentials:
+Run the Vite app locally after configuring a Convex development deployment and an authorized Vanta identity:
 
 ```powershell
 npm run dev
 ```
 
-Visit `http://localhost:5173` to explore:
-1. **Flow 1 (Global Benchmarking):** Input concepts, scan 3-tier markets, review "Apply vs Avoid in Nigeria" blueprint, and download instant publication-quality PDF, Word, and PowerPoint reports.
-2. **Flow 2a (Nigerian Viability & Vanta):** Deduplicate against Vanta with nuance retention, test 6-dimension Nigeria market viability, and review auto-calibrated Trium 7-criteria passing scorecards (&ge;66 pts).
-3. **Flow 2b (Emerging Tech Scout):** Simulate daily crawl of 50 emerging & global sites and auto-dispatch passing ideas to DIT.
-4. **Flow 2c (Nigerian Policy Scout):** Monitor CBN, SEC, NERC, FIRS, and NITDA circulars, extrapolating high-margin venture models.
-5. **Curated Source Registry:** Manage the 50 sites and exercise Dual Admin Sign-Off governance (Reva Admin & Vanta Admin).
-6. **DIT Notification Audit:** Inspect verified email dispatches and preview HTML emails sent to `digital-incubation@trium.ng`.
+Visit `http://localhost:5173` to use the workspace. Benchmark research requires Gemini; scheduled or manual scouting requires active registered sources; DIT delivery additionally requires Resend sender and recipient configuration. Reports and counts come from configured services and saved Convex records, not demo fixtures.
 
 ---
 
 ## 5. Security & Governance Compliance
 
-- **Zero Software Cost:** Reva utilizes only free-tier APIs and local models.
-- **Zero Vanta Data Exposure:** Deduplication against Vanta Idea Bank runs 100% on-device via local sentence embeddings. No internal portfolio ideas are ever transmitted to public AI training endpoints.
-- **Dual Sign-Off Requirement:** No source can be activated into the daily crawling schedule without explicit digital sign-off from both a Reva Platform Admin and a Vanta Studio Admin.
-- **Read-Only Vanta Access:** Reva reads from Vanta via `GET /api/v1/portfolio` or local cache; submission write-backs are staged for review and do not execute destructive writes.
+- **Provider configuration:** Benchmark research and scout classification require a server-side Gemini key; DIT delivery requires a verified Resend sender and configured DIT recipient.
+- **Vanta duplicate checks:** Reva reads the live Vanta portfolio API. A missing or failed API check is reported as unavailable; it is never replaced with a sample portfolio or a fabricated unique verdict.
+- **Source activation:** The configured Reva administrator controls source activation. The legacy Vanta approval field mirrors this state and is not an independent approval.
+- **Read-only Vanta access:** Scout screening does not submit ideas to Vanta. Reva performs its own seven-criteria assessment, with Vanta used only for optional duplicate matching.

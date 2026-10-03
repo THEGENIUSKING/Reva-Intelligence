@@ -2,6 +2,22 @@ import { query, mutation, internalMutation, internalQuery, env } from "./_genera
 import { v } from "convex/values";
 import { isApprovedVantaIdentity } from "./access";
 
+const sourceCategory = v.union(
+  v.literal("Emerging Market"),
+  v.literal("Nigerian Regulatory, Legal and Policy Environment"),
+  v.literal("Global Fallback"),
+);
+
+function normalizeCategory(value: string) {
+  const category = value.trim().toLowerCase();
+  if (category.startsWith("emerging market") || category.includes("emerging")) return "Emerging Market" as const;
+  if (category.includes("regulat") || category.includes("policy") || category.includes("nigeria")) {
+    return "Nigerian Regulatory, Legal and Policy Environment" as const;
+  }
+  if (category.includes("global")) return "Global Fallback" as const;
+  throw new Error(`Unsupported source category: ${value}`);
+}
+
 /**
  * List sources registered in the system with optional tier/active filters.
  */
@@ -94,11 +110,16 @@ export const addSource = mutation({
     feedUrl: v.optional(v.string()),
     region: v.string(),
     tier: v.string(),
-    category: v.string(),
+    category: sourceCategory,
+    sector: v.optional(v.string()),
+    industry: v.optional(v.string()),
   },
+  returns: v.id("sourceRegistry"),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    if (!args.name.trim()) throw new Error("Source name is required.");
+    if (!args.url.trim()) throw new Error("Source URL is required.");
     const parsed = new URL(args.url);
     if (parsed.protocol !== "https:") throw new Error("Source URLs must use HTTPS");
     if (args.feedUrl && new URL(args.feedUrl).protocol !== "https:") throw new Error("Feed URLs must use HTTPS");
@@ -106,13 +127,17 @@ export const addSource = mutation({
     const existing = await ctx.db.query("sourceRegistry").withIndex("by_url", (q) => q.eq("url", normalizedUrl)).first();
     if (existing) throw new Error("This source is already registered.");
 
+    const tier = args.category === "Global Fallback" ? "tier_b_global" : args.category === "Emerging Market" ? "tier_a_emerging" : "nigeria_regulator";
     return await ctx.db.insert("sourceRegistry", {
       name: args.name,
       url: normalizedUrl,
       ...(args.feedUrl ? { feedUrl: new URL(args.feedUrl).toString() } : {}),
       region: args.region,
-      tier: args.tier,
+      tier,
       category: args.category,
+      sector: args.sector,
+      industry: args.industry,
+      dateAdded: Date.now(),
       isActive: false,
       lastScrapedAt: undefined,
       failureCount: 0,
@@ -130,6 +155,8 @@ export const importCuratedSources = mutation({
       region: v.string(),
       category: v.string(),
       tier: v.string(),
+      sector: v.optional(v.string()),
+      industry: v.optional(v.string()),
     })),
   },
   returns: v.object({ added: v.number(), alreadyPresent: v.number() }),
@@ -140,6 +167,8 @@ export const importCuratedSources = mutation({
     let added = 0;
     let alreadyPresent = 0;
     for (const source of args.sources) {
+      const category = normalizeCategory(source.category);
+      if (!source.name.trim()) throw new Error("Every imported source must have a name.");
       const parsed = new URL(source.url);
       if (parsed.protocol !== "https:") throw new Error("Source URLs must use HTTPS");
       const url = parsed.toString().replace(/\/$/, "");
@@ -153,7 +182,10 @@ export const importCuratedSources = mutation({
       await ctx.db.insert("sourceRegistry", {
         ...source,
         url,
+        category,
+        tier: category === "Global Fallback" ? "tier_b_global" : category === "Emerging Market" ? "tier_a_emerging" : "nigeria_regulator",
         isActive: false,
+        dateAdded: Date.now(),
         failureCount: 0,
         signOffRevaAdmin: false,
         signOffVantaAdmin: false,
@@ -230,14 +262,14 @@ export const getActiveSourceDomains = internalQuery({
 
 export const seed = internalMutation(async (ctx) => {
   const INITIAL_REGISTRY_SOURCES = [
-    { name: "Disrupt Africa", url: "https://disrupt-africa.com", region: "Africa (Pan-African)", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "WeeTracker", url: "https://weetracker.com", region: "Africa (East & Southern)", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "Tech in Asia", url: "https://www.techinasia.com", region: "Southeast Asia", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "DailySocial Indonesia", url: "https://dailysocial.id", region: "Southeast Asia (Indonesia)", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "Wamda MENA", url: "https://www.wamda.com", region: "MENA", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "Inc42 India", url: "https://inc42.com", region: "South Asia (India)", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "Startups Brazil", url: "https://startups.com.br", region: "Latin America (Brazil)", category: "Emerging Market Primary", tier: "tier_a_emerging" },
-    { name: "Enterprise News Egypt", url: "https://enterprise.press", region: "MENA (Egypt)", category: "Emerging Market Primary", tier: "tier_a_emerging" },
+    { name: "Disrupt Africa", url: "https://disrupt-africa.com", region: "Africa (Pan-African)", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "WeeTracker", url: "https://weetracker.com", region: "Africa (East & Southern)", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "Tech in Asia", url: "https://www.techinasia.com", region: "Southeast Asia", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "DailySocial Indonesia", url: "https://dailysocial.id", region: "Southeast Asia (Indonesia)", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "Wamda MENA", url: "https://www.wamda.com", region: "MENA", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "Inc42 India", url: "https://inc42.com", region: "South Asia (India)", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "Startups Brazil", url: "https://startups.com.br", region: "Latin America (Brazil)", category: "Emerging Market", tier: "tier_a_emerging" },
+    { name: "Enterprise News Egypt", url: "https://enterprise.press", region: "MENA (Egypt)", category: "Emerging Market", tier: "tier_a_emerging" },
     { name: "Central Bank of Nigeria (CBN)", url: "https://www.cbn.gov.ng/Documents/circulars.asp", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", tier: "nigeria_regulator" },
     { name: "Securities & Exchange Commission (SEC Nigeria)", url: "https://sec.gov.ng/rules-codes-circulars", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", tier: "nigeria_regulator" },
     { name: "Nigerian Electricity Regulatory Commission (NERC)", url: "https://nerc.gov.ng/orders", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", tier: "nigeria_regulator" },

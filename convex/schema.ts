@@ -89,6 +89,7 @@ export default defineSchema({
     ownerId:         v.optional(v.string()),
     name:             v.string(),
     sector:           v.optional(v.string()),
+    industry:         v.optional(v.string()),
     description:      v.string(),
     problem:          v.string(),
     solution:         v.string(),
@@ -166,8 +167,10 @@ export default defineSchema({
     aiSummary:     v.optional(v.string()),
     potentialIdea: v.optional(v.string()),
     aiSector:      v.optional(v.string()),
+    industry:      v.optional(v.string()),
     isNewInSession: v.optional(v.boolean()),
     sessionDate:   v.optional(v.string()),
+    sessionId:     v.optional(v.string()),
     processedAt:   v.number(),
     status:        v.string(), // "processed" | "skipped" | "duplicate"
     publishedDate: v.optional(v.string()),
@@ -176,6 +179,19 @@ export default defineSchema({
     .index("by_contentHash", ["contentHash"])
     .index("by_sourceType",  ["sourceType"])
     .index("by_processedAt", ["processedAt"]),
+
+  scoutArticleSessions: defineTable({
+    runId: v.id("scoutRuns"),
+    articleId: v.id("scrapedItems"),
+    urlHash: v.string(),
+    scoutType: v.union(v.literal("emerging_tech"), v.literal("nigeria_policy")),
+    isNewInSession: v.boolean(),
+    sessionDate: v.string(),
+    processedAt: v.number(),
+  })
+    .index("by_runId_and_urlHash", ["runId", "urlHash"])
+    .index("by_processedAt", ["processedAt"])
+    .index("by_scoutType_and_processedAt", ["scoutType", "processedAt"]),
 
   // ── 4. CURATED SOURCES & REGULATORY REGISTRY ─────────────────────────────
   sourceRegistry: defineTable({
@@ -186,6 +202,7 @@ export default defineSchema({
     tier:         v.string(), // "tier_a_emerging" | "tier_b_global" | "nigeria_regulator" | "nigeria_legal"
     category:     v.string(), // "Emerging Market Primary" | "Nigerian Regulatory, Legal and Policy Environment" | "Global Fallback"
     sector:       v.optional(v.string()),
+    industry:     v.optional(v.string()),
     dateAdded:    v.optional(v.number()),
     isActive:     v.boolean(),
     lastScrapedAt: v.optional(v.number()),
@@ -227,9 +244,11 @@ export default defineSchema({
     publishedAt: v.optional(v.string()),
     ideaName: v.string(),
     sector: v.string(),
+    industry: v.optional(v.string()),
     summary: v.string(),
     isNewInSession: v.optional(v.boolean()),
     sessionDate:   v.optional(v.string()),
+    sessionId:     v.optional(v.string()),
     status: v.union(v.literal("new"), v.literal("reviewed"), v.literal("dismissed")),
     createdAt: v.number(),
   })
@@ -245,15 +264,20 @@ export default defineSchema({
     description:    v.string(),
     trigger:        v.string(),
     action:         v.string(),
+    actionType:     v.optional(v.union(v.literal("both_scouts"), v.literal("emerging_scout"), v.literal("policy_scout"))),
+    intervalMinutes: v.optional(v.number()),
+    scheduledFunctionId: v.optional(v.id("_scheduled_functions")),
     category:       v.string(),
     isActive:       v.boolean(),
     lastRunAt:      v.optional(v.number()),
     executionCount: v.number(),
     status:         v.string(), // "active" | "paused" | "running" | "failed"
+    lastError:      v.optional(v.string()),
     createdAt:      v.number(),
   })
     .index("by_key", ["key"])
-    .index("by_isActive", ["isActive"]),
+    .index("by_isActive", ["isActive"])
+    .index("by_createdAt", ["createdAt"]),
 
   // ── 6. DIT EMAIL NOTIFICATION AUDIT LOGS ─────────────────────────────────
   emailLogs: defineTable({

@@ -20,6 +20,34 @@ function isGroundedUrl(value: unknown, groundedHosts: Set<string>) {
   }
 }
 
+const scoringWeights = {
+  strategicAlignment: 20,
+  customerProblem: 20,
+  solutionFit: 15,
+  marketOpportunity: 15,
+  differentiation: 10,
+  sustainableAdvantage: 10,
+  feasibility: 10,
+} as const;
+
+function buildScoringCriteria(value: unknown) {
+  if (!value || typeof value !== "object") throw new Error("Gemini did not return a 7-criteria assessment.");
+  const source = value as Record<string, unknown>;
+  const criteria: Record<string, { score: number; max: number; rationale: string }> = {};
+  for (const [key, max] of Object.entries(scoringWeights)) {
+    const item = source[key];
+    if (!item || typeof item !== "object") throw new Error(`Gemini omitted the ${key} assessment.`);
+    const entry = item as Record<string, unknown>;
+    const score = Number(entry.score);
+    const rationale = typeof entry.rationale === "string" ? entry.rationale.trim() : "";
+    if (!Number.isFinite(score) || !rationale) throw new Error(`Gemini returned an incomplete ${key} assessment.`);
+    criteria[key] = { score: Math.max(0, Math.min(max, score)), max, rationale };
+  }
+  const totalScore = Object.values(criteria).reduce((sum, item) => sum + item.score, 0);
+  const grade = totalScore >= 86 ? "A*" : totalScore >= 76 ? "A" : totalScore >= 66 ? "B" : totalScore >= 57 ? "C" : "D";
+  return { ...criteria, totalScore, grade };
+}
+
 
 export const extractBrief = action({
   args: {
@@ -37,20 +65,26 @@ export const extractBrief = action({
   }),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
     const key = env.GEMINI_API_KEY;
     let sourceText = args.text?.trim() || "";
+    const input: Array<Record<string, unknown>> = [];
 
-    if (args.documentId && identity) {
+    if (args.documentId) {
       const doc = await ctx.runQuery(internal.files.getOwnedDocument, { id: args.documentId, ownerId: identity.subject });
-      if (doc) {
-        const url = await ctx.storage.getUrl(doc.storageId);
-        if (url) {
-          const response = await fetch(url);
-          if (response.ok) {
-            const bytes = Buffer.from(await response.arrayBuffer());
-            if (doc.contentType === "text/plain") sourceText += `\n\n${bytes.toString("utf8")}`;
-          }
-        }
+      if (!doc) throw new Error("The uploaded document was not found in your account.");
+      const url = await ctx.storage.getUrl(doc.storageId);
+      if (!url) throw new Error("The uploaded document is no longer available.");
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Could not read the uploaded document.");
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("Files must be 10 MB or smaller.");
+      if (doc.contentType === "text/plain") {
+        sourceText += `\n\n${bytes.toString("utf8")}`;
+      } else if (doc.contentType === "application/pdf") {
+        input.push({ type: "document", mime_type: "application/pdf", data: bytes.toString("base64") });
+      } else {
+        throw new Error("Upload a PDF or plain text document.");
       }
     }
 
@@ -61,10 +95,10 @@ export const extractBrief = action({
       throw new Error("Enter an idea description or attach a document.");
     }
 
-    const input: Array<Record<string, unknown>> = [{
+    input.unshift({
       type: "text",
-      text: `Extract one proposed venture idea from the supplied content. Return only JSON with keys: ideaName, sector, description, problem, solution, targetCustomer, monetization. Standardize sector to one of: 'Fintech & Financial Inclusion', 'AgriTech & Supply Chain', 'CleanTech & Energy Software', 'GovTech & Regulatory Tech', 'HealthTech & Life Sciences', 'Commerce, Retail & Logistics', 'InsurTech & Risk Analytics', 'Mobility & Smart Transit'. Keep each value concise.\n\nSource content:\n${sourceText.slice(0, 90_000) || "Venture initiative description."}`,
-    }];
+      text: `Extract one proposed venture idea from the supplied content. Return only JSON with keys: ideaName, sector, description, problem, solution, targetCustomer, monetization. Standardize sector to one of: 'Fintech & Financial Inclusion', 'AgriTech & Supply Chain', 'CleanTech & Energy Software', 'GovTech & Regulatory Tech', 'HealthTech & Life Sciences', 'Commerce, Retail & Logistics', 'InsurTech & Risk Analytics', 'Mobility & Smart Transit'. Use 'Uncategorized' when the evidence is insufficient. Do not add facts absent from the source.\n\nSource content:\n${sourceText.slice(0, 90_000) || "See the attached document."}`,
+    });
 
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST",
@@ -88,8 +122,8 @@ export const extractBrief = action({
     const extracted = safeJson(text);
 
     return {
-      ideaName: String(extracted.ideaName || "Venture Concept"),
-      sector: String(extracted.sector || "Fintech & Financial Inclusion"),
+      ideaName: String(extracted.ideaName || ""),
+      sector: String(extracted.sector || "Uncategorized"),
       description: String(extracted.description || sourceText.slice(0, 200)),
       problem: String(extracted.problem || ""),
       solution: String(extracted.solution || ""),
@@ -114,7 +148,8 @@ export const runBenchmark = action({
   returns: v.object({ id: v.id("benchmarks"), report: v.any() }),
   handler: async (ctx, args): Promise<{ id: Id<"benchmarks">; report: unknown }> => {
     const identity = await ctx.auth.getUserIdentity();
-    const ownerId = identity?.subject || "reva-demo-partner";
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const ownerId = identity.subject;
     const key = env.GEMINI_API_KEY;
     if (!key) throw new Error("Benchmarking is not configured. Set GEMINI_API_KEY in Convex environment variables.");
 
@@ -124,8 +159,8 @@ export const runBenchmark = action({
 
     const domains = await ctx.runQuery(internal.sources.getActiveSourceDomains, {});
     const searchInstruction = `CRITICAL CRAWLING INSTRUCTION: You MUST use the google_search tool to actively scrape the internet and find real benchmarks. You MUST prioritize crawling the following curated sources in our system:
-${domains.map(d => `site:${d}`).join(" OR ")}
-Your benchmark research must include hard data such as user numbers, revenues, return on investment (ROI), customer demographics, market viability, and key partners.`;
+  ${domains.map((domain: string) => `site:${domain}`).join(" OR ")}
+Use Google Search evidence for every factual claim. Do not invent user counts, revenue, ROI, customer demographics, partnerships, funding, or legal conclusions; state "not publicly reported" when evidence is unavailable. Separate cited facts from your analysis.`;
 
     let prompt = "";
     if (isFlow4b) {
@@ -157,7 +192,7 @@ Return ONLY a JSON object with this exact structure:
       "lessonsLearned": "string",
       "sourceUrl": "https://...",
       "sourceName": "string",
-      "confidence": "Verified source"
+      "confidence": "Gemini Search-cited; verify at source"
     }
   ],
   "blueprint": {
@@ -223,7 +258,7 @@ Return ONLY a JSON object with this exact shape:
       "lessonsLearned": "string",
       "sourceUrl": "https://...",
       "sourceName": "string",
-      "confidence": "Verified source"
+      "confidence": "Gemini Search-cited; verify at source"
     }
   ],
   "blueprint": {
@@ -233,19 +268,17 @@ Return ONLY a JSON object with this exact shape:
     "triumStrategicVerdict": "string"
   },
   "scoringCriteria": {
-    "strategicAlignment": { "score": 16, "max": 20, "rationale": "string", "considerations": ["Adheres to Trium themes", "Consistent with long-term vision", "Leverages Coronation ecosystem capabilities"] },
-    "customerProblem": { "score": 17, "max": 20, "rationale": "string", "considerations": ["Solves severe cash collection leakage", "High willingness to pay for automation", "Matches SME workflow needs"] },
-    "solutionFit": { "score": 12, "max": 15, "rationale": "string", "considerations": ["Large addressable commercial volume", "Expands market reach", "Deep local market understanding"] },
-    "marketOpportunity": { "score": 12, "max": 15, "rationale": "string", "considerations": ["Differentiated digital gateway", "Substantially improves reconciliation", "Tangible bottom-line impact"] },
-    "differentiation": { "score": 8, "max": 10, "rationale": "string", "considerations": ["Defensible against informal competition", "Sticky embedded workflow", "High switching moat"] },
-    "sustainableAdvantage": { "score": 8, "max": 10, "rationale": "string", "considerations": ["Ecosystem licensing advantage", "Available engineering talent", "Clear regulatory path"] },
-    "feasibility": { "score": 8, "max": 10, "rationale": "string", "considerations": ["Modular feature extensibility", "Scalable to adjacent West African markets"] },
-    "totalScore": 81,
-    "grade": "A"
+    "strategicAlignment": { "score": 0, "rationale": "Evidence-based assessment against all three considerations" },
+    "customerProblem": { "score": 0, "rationale": "Evidence-based assessment against all three considerations" },
+    "solutionFit": { "score": 0, "rationale": "Evidence-based assessment against all three considerations" },
+    "marketOpportunity": { "score": 0, "rationale": "Evidence-based assessment against all three considerations" },
+    "differentiation": { "score": 0, "rationale": "Evidence-based assessment against all three considerations" },
+    "sustainableAdvantage": { "score": 0, "rationale": "Evidence-based assessment against all three considerations" },
+    "feasibility": { "score": 0, "rationale": "Evidence-based assessment against both considerations" }
   }
 }
 
-Use up to six real companies with direct citations. Distinguish verified facts from model estimates.
+Score only from supplied facts and the cited research. Maximum scores are 20, 20, 15, 15, 10, 10, and 10 respectively. Include one concise rationale that addresses each criterion's listed considerations. Omit totalScore and grade; Reva computes both. Use up to six real companies with direct Search citations. Distinguish cited facts from model judgment.
 Venture: ${args.ideaName}
 Sector: ${args.sector}
 Brief: ${brief}`;
@@ -265,7 +298,6 @@ Brief: ${brief}`;
         generation_config: { thinking_level: "low", max_output_tokens: 8192 },
       }),
     });
-
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 400);
       throw new Error(`Research provider returned ${response.status}: ${detail}`);
@@ -284,20 +316,51 @@ Brief: ${brief}`;
     const groundedHosts = new Set(groundedUrls.map((url) => new URL(url).hostname));
     const groundedUrlByHost = new Map(groundedUrls.map((url) => [new URL(url).hostname, url]));
 
-    const benchmarks = Array.isArray(generated.benchmarks) ? generated.benchmarks.map((item: any) => ({
-      companyName: String(item.companyName || "Benchmark Precedent"),
-      country: String(item.country || "Peer Market"),
-      regionTier: ["Nearby Africa", "Emerging Peer", "Global Leader"].includes(item.regionTier) ? item.regionTier : "Emerging Peer",
-      launchYear: item.launchYear ? String(item.launchYear) : undefined,
-      status: String(item.status || "Active"),
-      fundingRaised: item.fundingRaised ? String(item.fundingRaised) : undefined,
-      operationalScale: item.operationalScale ? String(item.operationalScale) : undefined,
-      businessModel: String(item.businessModel || "Commercial Model"),
-      lessonsLearned: String(item.lessonsLearned || "Operating takeaway in Nigerian context"),
-      sourceUrl: item.sourceUrl || "https://trium.ng",
-      sourceName: String(item.sourceName || "Industry Research"),
-      confidence: "Verified citation",
-    })) : [];
+    const benchmarks = Array.isArray(generated.benchmarks) ? generated.benchmarks.flatMap((item: any) => {
+      if (!item || typeof item !== "object" || !isGroundedUrl(item.sourceUrl, groundedHosts)) return [];
+      const host = new URL(item.sourceUrl).hostname;
+      const companyName = typeof item.companyName === "string" ? item.companyName.trim() : "";
+      if (!companyName) return [];
+      return [{
+        companyName,
+        country: typeof item.country === "string" ? item.country : "Not stated",
+        regionTier: ["Nearby Africa", "Emerging Peer", "Global Leader"].includes(item.regionTier) ? item.regionTier : "Unclassified",
+        launchYear: item.launchYear ? String(item.launchYear) : undefined,
+        status: typeof item.status === "string" ? item.status : "Not verified",
+        fundingRaised: item.fundingRaised ? String(item.fundingRaised) : undefined,
+        operationalScale: item.operationalScale ? String(item.operationalScale) : undefined,
+        businessModel: typeof item.businessModel === "string" ? item.businessModel : "",
+        customersAndRevenues: item.customersAndRevenues ? String(item.customersAndRevenues) : undefined,
+        roiAndViability: item.roiAndViability ? String(item.roiAndViability) : undefined,
+        keyPartners: item.keyPartners ? String(item.keyPartners) : undefined,
+        lessonsLearned: typeof item.lessonsLearned === "string" ? item.lessonsLearned : "",
+        sourceUrl: groundedUrlByHost.get(host) || item.sourceUrl,
+        sourceName: typeof item.sourceName === "string" && item.sourceName.trim() ? item.sourceName : host,
+        confidence: "Gemini Search-cited; verify claims at source",
+      }];
+    }) : [];
+    const gapInitiativeIdeas = isFlow4b && Array.isArray(generated.gapInitiativeIdeas)
+      ? generated.gapInitiativeIdeas.flatMap((item: any) => {
+        if (!item || typeof item !== "object" || !isGroundedUrl(item.sourceLink, groundedHosts)) return [];
+        const requiredFields = ["ideaName", "description", "category", "problem", "solution", "similarSolutions", "targetCustomer", "goToMarket", "monetization"];
+        if (requiredFields.some((field) => typeof item[field] !== "string" || !item[field].trim())) return [];
+        const host = new URL(item.sourceLink).hostname;
+        return [{
+          ideaName: item.ideaName,
+          description: item.description,
+          category: item.category,
+          problem: item.problem,
+          solution: item.solution,
+          similarSolutions: item.similarSolutions,
+          targetCustomer: item.targetCustomer,
+          goToMarket: item.goToMarket,
+          valueDrivers: Array.isArray(item.valueDrivers) ? item.valueDrivers.filter((value: unknown): value is string => typeof value === "string") : [],
+          monetization: item.monetization,
+          ...(typeof item.additionalDetails === "string" ? { additionalDetails: item.additionalDetails } : {}),
+          sourceLink: groundedUrlByHost.get(host) || item.sourceLink,
+        }];
+      })
+      : undefined;
 
     const report = {
       ideaName: String(generated.ideaName || args.ideaName || "Venture concept"),
@@ -305,10 +368,10 @@ Brief: ${brief}`;
       conceptHash: Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([ownerId, args.ideaName, args.sector, args.description, args.flowType])))))
         .map((byte) => byte.toString(16).padStart(2, "0")).join(""),
       description: String(generated.description || brief),
-      problem: String(args.problem || generated.problem || "Market friction"),
-      solution: String(args.solution || generated.solution || "Proposed solution"),
-      targetCustomer: String(args.targetCustomer || generated.targetCustomer || "Target customer"),
-      monetization: String(args.monetization || generated.monetization || "Monetization model"),
+      problem: String(args.problem || generated.problem || ""),
+      solution: String(args.solution || generated.solution || ""),
+      targetCustomer: String(args.targetCustomer || generated.targetCustomer || ""),
+      monetization: String(args.monetization || generated.monetization || ""),
       flowType: args.flowType || "flow4a_benchmark",
       counts: {
         total: benchmarks.length,
@@ -321,10 +384,10 @@ Brief: ${brief}`;
         whatToApply: Array.isArray(generated.blueprint?.whatToApply) ? generated.blueprint.whatToApply : [],
         whatToAvoid: Array.isArray(generated.blueprint?.whatToAvoid) ? generated.blueprint.whatToAvoid : [],
         recurringPatterns: Array.isArray(generated.blueprint?.recurringPatterns) ? generated.blueprint.recurringPatterns : [],
-        triumStrategicVerdict: String(generated.blueprint?.triumStrategicVerdict || "High commercial alignment with Trium thesis."),
+        triumStrategicVerdict: String(generated.blueprint?.triumStrategicVerdict || ""),
       },
-      scoringCriteria: generated.scoringCriteria || undefined,
-      gapInitiativeIdeas: Array.isArray(generated.gapInitiativeIdeas) ? generated.gapInitiativeIdeas : undefined,
+      scoringCriteria: isFlow4b ? undefined : buildScoringCriteria(generated.scoringCriteria),
+      gapInitiativeIdeas,
     };
 
     const id: Id<"benchmarks"> = await ctx.runMutation(internal.benchmarks.saveGenerated, {

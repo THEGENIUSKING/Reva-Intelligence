@@ -3,35 +3,15 @@ import * as XLSX from "xlsx";
 import { normalizeSector, CANONICAL_SECTORS } from "./Dashboard";
 
 export const SOURCE_CATEGORIES = [
-  "Emerging Market Primary",
+  "Emerging Market",
   "Nigerian Regulatory, Legal and Policy Environment",
   "Global Fallback"
 ];
 
-const INITIAL_REGISTRY_SOURCES = [
-  // Emerging Market Primary
-  { id: "s1", name: "Disrupt Africa", url: "https://disrupt-africa.com", region: "Africa (Pan-African)", category: "Emerging Market Primary", sector: "Enterprise & Emerging Tech", dateAdded: Date.now() - 86400000 * 30, revaSigned: true, vantaSigned: true },
-  { id: "s2", name: "WeeTracker", url: "https://weetracker.com", region: "Africa (East & Southern)", category: "Emerging Market Primary", sector: "Fintech & Financial Inclusion", dateAdded: Date.now() - 86400000 * 25, revaSigned: true, vantaSigned: true },
-  { id: "s3", name: "Tech in Asia", url: "https://www.techinasia.com", region: "Southeast Asia", category: "Emerging Market Primary", sector: "Commerce, Retail & Logistics", dateAdded: Date.now() - 86400000 * 20, revaSigned: true, vantaSigned: true },
-  { id: "s4", name: "DailySocial Indonesia", url: "https://dailysocial.id", region: "Southeast Asia (Indonesia)", category: "Emerging Market Primary", sector: "AgriTech & Supply Chain", dateAdded: Date.now() - 86400000 * 18, revaSigned: true, vantaSigned: true },
-  { id: "s5", name: "Wamda MENA", url: "https://www.wamda.com", region: "MENA", category: "Emerging Market Primary", sector: "Fintech & Financial Inclusion", dateAdded: Date.now() - 86400000 * 15, revaSigned: true, vantaSigned: true },
-  { id: "s6", name: "Inc42 India", url: "https://inc42.com", region: "South Asia (India)", category: "Emerging Market Primary", sector: "Commerce, Retail & Logistics", dateAdded: Date.now() - 86400000 * 14, revaSigned: true, vantaSigned: true },
-  { id: "s7", name: "Startups Brazil", url: "https://startups.com.br", region: "Latin America (Brazil)", category: "Emerging Market Primary", sector: "Fintech & Financial Inclusion", dateAdded: Date.now() - 86400000 * 12, revaSigned: true, vantaSigned: true },
-  { id: "s8", name: "Enterprise News Egypt", url: "https://enterprise.press", region: "MENA (Egypt)", category: "Emerging Market Primary", sector: "CleanTech & Energy Software", dateAdded: Date.now() - 86400000 * 10, revaSigned: true, vantaSigned: true },
-  
-  // Nigerian Regulatory, Legal and Policy Environment
-  { id: "s9", name: "Central Bank of Nigeria (CBN)", url: "https://www.cbn.gov.ng/Documents/circulars.asp", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", sector: "GovTech & Regulatory Tech", dateAdded: Date.now() - 86400000 * 40, revaSigned: true, vantaSigned: true },
-  { id: "s10", name: "Securities & Exchange Commission (SEC Nigeria)", url: "https://sec.gov.ng/rules-codes-circulars", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", sector: "GovTech & Regulatory Tech", dateAdded: Date.now() - 86400000 * 35, revaSigned: true, vantaSigned: true },
-  { id: "s11", name: "Nigerian Electricity Regulatory Commission (NERC)", url: "https://nerc.gov.ng/orders", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", sector: "CleanTech & Energy Software", dateAdded: Date.now() - 86400000 * 30, revaSigned: true, vantaSigned: true },
-  { id: "s12", name: "National Info Tech Dev Agency (NITDA)", url: "https://nitda.gov.ng/guidelines", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", sector: "GovTech & Regulatory Tech", dateAdded: Date.now() - 86400000 * 25, revaSigned: true, vantaSigned: true },
-  { id: "s13", name: "Federal Inland Revenue Service (FIRS)", url: "https://www.firs.gov.ng/tax-resources", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", sector: "GovTech & Regulatory Tech", dateAdded: Date.now() - 86400000 * 20, revaSigned: true, vantaSigned: true },
-  { id: "s14", name: "Federal Ministry of Communications, Innovation & Digital Economy", url: "https://bmdce.gov.ng", region: "Nigeria", category: "Nigerian Regulatory, Legal and Policy Environment", sector: "GovTech & Regulatory Tech", dateAdded: Date.now() - 86400000 * 15, revaSigned: true, vantaSigned: true },
-
-  // Global Fallback
-  { id: "s15", name: "Crunchbase News (Global)", url: "https://news.crunchbase.com", region: "Global", category: "Global Fallback", sector: "Enterprise & Emerging Tech", dateAdded: Date.now() - 86400000 * 50, revaSigned: true, vantaSigned: true },
-  { id: "s16", name: "TechCrunch Emerging", url: "https://techcrunch.com", region: "Global", category: "Global Fallback", sector: "Enterprise & Emerging Tech", dateAdded: Date.now() - 86400000 * 45, revaSigned: true, vantaSigned: true },
-  { id: "s17", name: "Y Combinator Launches", url: "https://www.ycombinator.com/blog", region: "Global", category: "Global Fallback", sector: "Fintech & Financial Inclusion", dateAdded: Date.now() - 86400000 * 30, revaSigned: true, vantaSigned: true },
-];
+function normalizeSourceCategory(value = "") {
+  if (value.startsWith("Emerging Market")) return "Emerging Market";
+  return value;
+}
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -42,6 +22,8 @@ export function SourceRegistry() {
 
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
+  const [industryFilter, setIndustryFilter] = useState("All Industries");
+  const [dateFilter, setDateFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 12;
@@ -50,8 +32,9 @@ export function SourceRegistry() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [formName, setFormName] = useState("");
   const [formUrl, setFormUrl] = useState("");
-  const [formCategory, setFormCategory] = useState("Emerging Market Primary");
-  const [formSector, setFormSector] = useState("Fintech & Financial Inclusion");
+  const [formCategory, setFormCategory] = useState("Emerging Market");
+  const [formSector, setFormSector] = useState("");
+  const [formIndustry, setFormIndustry] = useState("");
   const [formRegion, setFormRegion] = useState("");
   const [formError, setFormError] = useState("");
 
@@ -69,26 +52,41 @@ export function SourceRegistry() {
 
   const availableCategories = useMemo(() => {
     const c = new Set();
-    sources.forEach(x => { if (x.category) c.add(x.category); });
+    sources.forEach(x => { if (x.category) c.add(normalizeSourceCategory(x.category)); });
     return Array.from(c).filter(Boolean).sort();
+  }, [sources]);
+
+  const availableIndustries = useMemo(() => {
+    const values = new Set(sources.map((source) => source.industry).filter(Boolean));
+    return ["All Industries", ...Array.from(values).sort()];
   }, [sources]);
 
   // Filter sources
   const filteredSources = useMemo(() => {
+    const now = Date.now();
+    const thresholds = {
+      "7d": now - 7 * 24 * 60 * 60 * 1000,
+      "30d": now - 30 * 24 * 60 * 60 * 1000,
+      year: new Date(new Date().getFullYear(), 0, 1).getTime(),
+      all: 0,
+    };
     return sources.filter((s) => {
-      if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
+      if (categoryFilter !== "all" && normalizeSourceCategory(s.category) !== categoryFilter) return false;
       if (sectorFilter !== "All Sectors" && normalizeSector(s.sector) !== sectorFilter) return false;
+      if (industryFilter !== "All Industries" && s.industry !== industryFilter) return false;
+      const addedAt = s.dateAdded || s._creationTime || 0;
+      if (thresholds[dateFilter] && addedAt < thresholds[dateFilter]) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return `${s.name} ${s.url} ${s.region || ""} ${s.category} ${s.sector || ""}`.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [sources, categoryFilter, sectorFilter, searchQuery]);
+  }, [sources, categoryFilter, sectorFilter, industryFilter, dateFilter, searchQuery]);
 
   useEffect(() => {
     setPage(1);
-  }, [categoryFilter, sectorFilter, searchQuery]);
+  }, [categoryFilter, sectorFilter, industryFilter, dateFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredSources.length / PAGE_SIZE) || 1;
   const paginatedSources = filteredSources.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -107,7 +105,7 @@ export function SourceRegistry() {
     setFormError("");
 
     if (!formName.trim()) { setFormError("Source Name is compulsory."); return; }
-    if (!formUrl.trim() || !formUrl.startsWith("http")) { setFormError("Valid HTTPS Website URL is compulsory."); return; }
+    if (!formUrl.trim() || !/^https:\/\//i.test(formUrl.trim())) { setFormError("Valid HTTPS Website URL is compulsory."); return; }
     if (!formCategory) { setFormError("Category selection is compulsory."); return; }
 
     try {
@@ -116,11 +114,15 @@ export function SourceRegistry() {
         url: formUrl.trim(),
         category: formCategory,
         tier: getTierForCategory(formCategory),
+        ...(formSector ? { sector: formSector } : {}),
+        ...(formIndustry.trim() ? { industry: formIndustry.trim() } : {}),
         region: formRegion.trim() || (formCategory === "Nigerian Regulatory, Legal and Policy Environment" ? "Nigeria" : "Emerging Markets")
       });
       setImportNotice(`Source "${formName}" registered successfully.`);
       setFormName("");
       setFormUrl("");
+      setFormSector("");
+      setFormIndustry("");
       setFormRegion("");
       setShowAddModal(false);
     } catch (err) {
@@ -137,22 +139,11 @@ export function SourceRegistry() {
       const extension = file.name.split(".").pop()?.toLowerCase();
       let importedRows = [];
 
-      if (extension === "xlsx" || extension === "xls") {
-        const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        importedRows = XLSX.utils.sheet_to_json(worksheet);
-      } else if (extension === "csv" || extension === "txt") {
-        const text = await file.text();
-        const lines = text.split("\n").filter((l) => l.trim().length > 0);
-        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/[^a-z]/g, ""));
-        for (let i = 1; i < lines.length; i++) {
-          const cells = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
-          const row = {};
-          headers.forEach((h, idx) => { row[h] = cells[idx] || ""; });
-          importedRows.push(row);
-        }
+      if (extension === "xlsx" || extension === "xls" || extension === "csv") {
+        const input = extension === "csv" ? await file.text() : await file.arrayBuffer();
+        const workbook = XLSX.read(input, { type: extension === "csv" ? "string" : "array" });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        importedRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
       } else {
         throw new Error("Please choose an Excel (.xlsx, .xls) or CSV (.csv) file.");
       }
@@ -161,32 +152,44 @@ export function SourceRegistry() {
 
       const newItems = [];
       for (const row of importedRows) {
-        const name = row.name || row.sourcename || row.title || row.publication || "";
-        const url = row.url || row.website || row.link || "";
-        let category = row.category || row.tier || "Emerging Market Primary";
+        const normalizedRow = Object.fromEntries(Object.entries(row).map(([key, value]) => [
+          key.toLowerCase().replace(/[^a-z0-9]/g, ""), String(value ?? "").trim(),
+        ]));
+        const name = normalizedRow.name || normalizedRow.sourcename || normalizedRow.title || normalizedRow.publication || "";
+        const url = normalizedRow.url || normalizedRow.website || normalizedRow.link || "";
+        let category = normalizedRow.category || normalizedRow.tier || "";
+        if (!category) throw new Error("Every imported source row must include a Category column value.");
 
         if (category.toLowerCase().includes("regulat") || category.toLowerCase().includes("policy") || category.toLowerCase().includes("nigeria")) {
           category = "Nigerian Regulatory, Legal and Policy Environment";
         } else if (category.toLowerCase().includes("global")) {
           category = "Global Fallback";
         } else {
-          category = "Emerging Market Primary";
+          category = "Emerging Market";
         }
 
-        if (name && url && url.startsWith("http")) {
+        if (name && url && /^https:\/\//i.test(url)) {
           newItems.push({
             name: String(name).slice(0, 100),
             url: String(url).slice(0, 200),
             category,
             tier: getTierForCategory(category),
-            region: row.region || "Global"
+            region: normalizedRow.region || "Global",
+            ...(normalizedRow.sector ? { sector: normalizedRow.sector } : {}),
+            ...(normalizedRow.industry ? { industry: normalizedRow.industry } : {}),
           });
         }
       }
 
       if (newItems.length > 0) {
-        const result = await importSourcesMutation({ sources: newItems });
-        setImportNotice(`Successfully imported ${result.added} verified sources (${result.alreadyPresent} already present).`);
+        let added = 0;
+        let alreadyPresent = 0;
+        for (let index = 0; index < newItems.length; index += 100) {
+          const result = await importSourcesMutation({ sources: newItems.slice(index, index + 100) });
+          added += result.added;
+          alreadyPresent += result.alreadyPresent;
+        }
+        setImportNotice(`Imported ${added} sources (${alreadyPresent} already present). Pending sources require approval.`);
       } else {
         throw new Error("Could not parse valid sources. Ensure columns include 'Name' and 'URL'.");
       }
@@ -197,9 +200,9 @@ export function SourceRegistry() {
     }
   };
 
-  const toggleSignOff = async (id, role) => {
+  const toggleSignOff = async (id, isActive) => {
     try {
-      await approveSource({ id, signatureType: role });
+      await approveSource({ id, approved: !isActive });
     } catch (err) {
       alert("Failed to toggle signoff: " + err.message);
     }
@@ -212,15 +215,15 @@ export function SourceRegistry() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-primary/10 text-primary">
-              Curated Source Registry & Governance
+              Curated Source Registry
             </span>
-            <span className="text-[11px] text-secondary">{sources.length} Verified Feeds</span>
+            <span className="text-[11px] text-secondary">{sources.length} Registered Sources</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-on-surface font-headline">
-            Curated Source Catalog & Dual Governance
+            Curated Source Catalog & Approval
           </h1>
           <p className="mt-0.5 text-xs text-secondary max-w-3xl leading-relaxed">
-            Per Trium operational governance, sources are categorized into three distinct tiers: Emerging Market Primary, Nigerian Regulatory & Legal, and Global Fallbacks. Import via Excel/CSV or register manually.
+            Sources use Emerging Market, Nigerian Regulatory, Legal and Policy Environment, or Global Fallback. Import via Excel/CSV or register manually.
           </p>
         </div>
 
@@ -229,7 +232,7 @@ export function SourceRegistry() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls,.csv,.txt"
+            accept=".xlsx,.xls,.csv"
             onChange={handleFileUpload}
             className="sr-only"
           />
@@ -281,7 +284,7 @@ export function SourceRegistry() {
           </button>
 
           {availableCategories.map((cat) => {
-            const count = sources.filter((s) => s.category === cat).length;
+            const count = sources.filter((s) => normalizeSourceCategory(s.category) === cat).length;
             return (
               <button
                 key={cat}
@@ -300,7 +303,7 @@ export function SourceRegistry() {
         </div>
 
         {/* Sector Filter & Search */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={sectorFilter}
             onChange={(e) => setSectorFilter(e.target.value)}
@@ -309,6 +312,17 @@ export function SourceRegistry() {
             {CANONICAL_SECTORS.map((sec) => (
               <option key={sec} value={sec}>{sec}</option>
             ))}
+          </select>
+
+          <select value={industryFilter} onChange={(event) => setIndustryFilter(event.target.value)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-low text-secondary border border-amber-900/10" aria-label="Filter sources by industry">
+            {availableIndustries.map((industry) => <option key={industry} value={industry}>{industry}</option>)}
+          </select>
+
+          <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-low text-secondary border border-amber-900/10" aria-label="Filter sources by date added">
+            <option value="all">Any date added</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="year">This year</option>
           </select>
 
           <div className="flex items-center gap-2 bg-surface-low px-3 py-1.5 rounded-lg border border-amber-900/10 text-xs">
@@ -332,18 +346,19 @@ export function SourceRegistry() {
               <tr>
                 <th className="p-2.5">Source Publication & URL</th>
                 <th className="p-2.5">Category</th>
-                <th className="p-2.5">Sector</th>
+                <th className="p-2.5">Sector / Industry</th>
+                <th className="p-2.5">Date Added</th>
                 <th className="p-2.5 text-center">Reva Admin</th>
-                <th className="p-2.5 text-center">Vanta Admin</th>
+                <th className="p-2.5 text-center">Vanta State</th>
                 <th className="p-2.5 text-center">Rotation Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-amber-900/10">
               {paginatedSources.length ? (
                 paginatedSources.map((src) => {
-                  const isFullyActive = src.signOffRevaAdmin && src.signOffVantaAdmin;
+                  const isFullyActive = src.isActive;
                   return (
-                    <tr key={src.id} className="hover:bg-surface-low/40">
+                    <tr key={src._id} className="hover:bg-surface-low/40">
                       <td className="p-2.5 max-w-xs">
                         <div className="font-bold text-on-surface text-sm">{src.name}</div>
                         <a
@@ -365,19 +380,21 @@ export function SourceRegistry() {
                             ? "bg-purple-500/10 text-purple-800"
                             : "bg-blue-500/10 text-blue-800"
                         }`}>
-                          {src.category}
+                          {normalizeSourceCategory(src.category)}
                         </span>
                         <div className="text-[10px] text-secondary mt-0.5">{src.region || "Global"}</div>
                       </td>
 
                       <td className="p-2.5">
-                        <span className="font-medium text-on-surface">{normalizeSector(src.sector)}</span>
+                        <span className="font-medium text-on-surface">{src.sector ? normalizeSector(src.sector) : "Not specified"}</span>
+                        {src.industry && <div className="text-[11px] text-secondary">{src.industry}</div>}
                       </td>
+                      <td className="p-2.5 text-secondary">{src.dateAdded || src._creationTime ? new Date(src.dateAdded || src._creationTime).toLocaleDateString() : "Unknown"}</td>
 
                       <td className="p-2.5 text-center">
                         <button
                           type="button"
-                          onClick={() => toggleSignOff(src._id, "reva")}
+                          onClick={() => toggleSignOff(src._id, src.isActive)}
                           className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
                             src.signOffRevaAdmin
                               ? "bg-emerald-500/10 text-emerald-800 border-emerald-500/20"
@@ -389,17 +406,7 @@ export function SourceRegistry() {
                       </td>
 
                       <td className="p-2.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleSignOff(src._id, "vanta")}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
-                            src.signOffVantaAdmin
-                              ? "bg-emerald-500/10 text-emerald-800 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-800 border-amber-500/20"
-                          }`}
-                        >
-                          {src.signOffVantaAdmin ? "Approved" : "Awaiting"}
-                        </button>
+                        <span className="text-[10px] text-secondary">{src.signOffVantaAdmin ? "Mirrored" : "Not approved"}</span>
                       </td>
 
                       <td className="p-2.5 text-center">
@@ -418,7 +425,7 @@ export function SourceRegistry() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-secondary">
+                  <td colSpan={7} className="p-8 text-center text-secondary">
                     No sources match your filter criteria.
                   </td>
                 </tr>
@@ -519,7 +526,7 @@ export function SourceRegistry() {
                   onChange={(e) => setFormCategory(e.target.value)}
                   className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white font-medium"
                 >
-                  <option value="Emerging Market Primary">Emerging Market Primary</option>
+                  <option value="Emerging Market">Emerging Market</option>
                   <option value="Nigerian Regulatory, Legal and Policy Environment">Nigerian Regulatory, Legal and Policy Environment</option>
                   <option value="Global Fallback">Global Fallback</option>
                 </select>
@@ -535,6 +542,7 @@ export function SourceRegistry() {
                     onChange={(e) => setFormSector(e.target.value)}
                     className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white"
                   >
+                    <option value="">Not specified</option>
                     {CANONICAL_SECTORS.filter((s) => s !== "All Sectors").map((sec) => (
                       <option key={sec} value={sec}>{sec}</option>
                     ))}
@@ -553,6 +561,17 @@ export function SourceRegistry() {
                     className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[10px] uppercase tracking-wider text-secondary mb-1">Industry (Optional)</label>
+                <input
+                  type="text"
+                  value={formIndustry}
+                  onChange={(event) => setFormIndustry(event.target.value)}
+                  placeholder="e.g. Digital lending, food logistics"
+                  className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-amber-900/10 mt-4">

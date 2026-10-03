@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
 export const CANONICAL_SECTORS = [
   "All Sectors",
@@ -10,11 +10,12 @@ export const CANONICAL_SECTORS = [
   "Commerce, Retail & Logistics",
   "InsurTech & Risk Analytics",
   "Mobility & Smart Transit",
-  "Enterprise & Emerging Tech"
+  "Enterprise & Emerging Tech",
+  "Uncategorized"
 ];
 
 export function normalizeSector(sectorStr = "") {
-  if (!sectorStr) return "Fintech & Financial Inclusion";
+  if (!sectorStr) return "Uncategorized";
   const s = sectorStr.toLowerCase();
   if (s.includes("agri") || s.includes("farm") || s.includes("crop")) return "AgriTech & Supply Chain";
   if (s.includes("clean") || s.includes("energy") || s.includes("solar") || s.includes("power")) return "CleanTech & Energy Software";
@@ -24,14 +25,19 @@ export function normalizeSector(sectorStr = "") {
   if (s.includes("insur")) return "InsurTech & Risk Analytics";
   if (s.includes("transit") || s.includes("mobility") || s.includes("transport")) return "Mobility & Smart Transit";
   if (s.includes("fintech") || s.includes("pay") || s.includes("bank") || s.includes("lend") || s.includes("credit")) return "Fintech & Financial Inclusion";
-  return "Enterprise & Emerging Tech";
+  return "Uncategorized";
 }
 
 export function Dashboard({ user, counts, overview, recentFindings = [], onNavigate }) {
-  const [timeFilter, setTimeFilter] = useState("all"); // '24h' | '7d' | '30d' | '365d' | 'all'
+  const [timeFilter, setTimeFilter] = useState("all");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
+  const [industryFilter, setIndustryFilter] = useState("All Industries");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFinding, setSelectedFinding] = useState(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Time filter calculations
   const now = Date.now();
@@ -40,30 +46,44 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
     "7d": now - 7 * 24 * 60 * 60 * 1000,
     "30d": now - 30 * 24 * 60 * 60 * 1000,
     "365d": now - 365 * 24 * 60 * 60 * 1000,
+    today: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime(),
+    month: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime(),
+    year: new Date(new Date().getFullYear(), 0, 1).getTime(),
     "all": 0,
   };
 
   const filteredFindings = useMemo(() => {
     const threshold = timeThresholds[timeFilter] || 0;
+    const start = customStart ? new Date(`${customStart}T00:00:00`).getTime() : 0;
+    const end = customEnd ? new Date(`${customEnd}T23:59:59.999`).getTime() : now;
     return recentFindings.filter((item) => {
       // Time filter
       const itemTime = item.createdAt || item._creationTime || 0;
-      if (threshold > 0 && itemTime < threshold) return false;
+      if (timeFilter === "custom" && ((start && itemTime < start) || (customEnd && itemTime > end))) return false;
+      if (timeFilter !== "custom" && threshold > 0 && itemTime < threshold) return false;
 
       // Sector filter
       const normSector = normalizeSector(item.sector);
       if (sectorFilter !== "All Sectors" && normSector !== sectorFilter) return false;
+      if (industryFilter !== "All Industries" && item.industry !== industryFilter) return false;
 
       // Text search
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        const text = `${item.ideaName || ""} ${item.summary || ""} ${item.sourceName || ""} ${normSector}`.toLowerCase();
+        const text = `${item.ideaName || ""} ${item.summary || ""} ${item.sourceName || ""} ${normSector} ${item.industry || ""}`.toLowerCase();
         if (!text.includes(query)) return false;
       }
 
       return true;
     });
-  }, [recentFindings, timeFilter, sectorFilter, searchQuery]);
+  }, [recentFindings, timeFilter, customStart, customEnd, sectorFilter, industryFilter, searchQuery, now]);
+
+  const availableIndustries = useMemo(() => {
+    return ["All Industries", ...Array.from(new Set(recentFindings.map((item) => item.industry).filter(Boolean))).sort()];
+  }, [recentFindings]);
+  const totalPages = Math.ceil(filteredFindings.length / PAGE_SIZE) || 1;
+  const pageFindings = filteredFindings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => setPage(1), [timeFilter, customStart, customEnd, sectorFilter, industryFilter, searchQuery]);
 
   // Sector breakdown count for interactive chips
   const sectorCounts = useMemo(() => {
@@ -82,9 +102,9 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
 
   const metrics = [
     { label: "Benchmark Reports", value: counts.benchmarks, route: "benchmark", icon: "insights", desc: "Sourced Precedent Reports" },
-    { label: "Active Scout Sources", value: (overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0), route: "sources", icon: "travel_explore", desc: "Dual Approved Feeds" },
+    { label: "Active Scout Sources", value: (overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0), route: "sources", icon: "travel_explore", desc: "Active Registry Sources" },
     { label: "Articles Ingested (24h)", value: overview?.articlesLastDay || 0, route: "scraping", icon: "feed", desc: "Auto-Scraped Signals" },
-    { label: "New Idea Candidates", value: overview?.ideasLastDay || 0, route: "scraping", icon: "lightbulb", desc: "7-Criteria Filtered" },
+    { label: "New Scout Findings", value: overview?.ideasLastDay || 0, route: "scraping", icon: "lightbulb", desc: "Gemini-Derived Signals" },
   ];
 
   return (
@@ -97,7 +117,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
               Trium Venture Studio OS
             </span>
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-medium text-secondary">Autonomous Patrol Live</span>
+            <span className="text-[11px] font-medium text-secondary">{overview?.geminiConfigured ? "Scheduled Scout Ready" : "Gemini Not Configured"}</span>
           </div>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-on-surface font-headline">
             Operational Intelligence Dashboard
@@ -206,14 +226,17 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
           </div>
 
           {/* Time Filter Pills */}
-          <div className="flex items-center gap-1 bg-surface-low p-1 rounded-lg border border-amber-900/10 text-xs">
+          <div className="flex flex-wrap items-center gap-1 bg-surface-low p-1 rounded-lg border border-amber-900/10 text-xs">
             <span className="px-2 text-[10px] font-bold uppercase text-secondary tracking-wider">Time:</span>
             {[
               { id: "all", label: "All Time" },
               { id: "24h", label: "24 Hours" },
+              { id: "today", label: "Today" },
               { id: "7d", label: "7 Days" },
               { id: "30d", label: "30 Days" },
-              { id: "365d", label: "This Year" },
+              { id: "month", label: "This Month" },
+              { id: "year", label: "This Year" },
+              { id: "custom", label: "Custom" },
             ].map((t) => (
               <button
                 key={t.id}
@@ -229,6 +252,12 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
               </button>
             ))}
           </div>
+          {timeFilter === "custom" && (
+            <div className="flex items-center gap-2 text-xs">
+              <label className="text-secondary">From <input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="rounded-md border border-amber-900/10 bg-white px-2 py-1 text-on-surface" /></label>
+              <label className="text-secondary">To <input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="rounded-md border border-amber-900/10 bg-white px-2 py-1 text-on-surface" /></label>
+            </div>
+          )}
         </div>
 
         {/* Sector Filter Bar & Search */}
@@ -269,7 +298,11 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
           </div>
 
           {/* Search Box */}
-          <div className="flex items-center gap-2 bg-surface-low px-3 py-1.5 rounded-lg border border-amber-900/10 text-xs shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={industryFilter} onChange={(event) => setIndustryFilter(event.target.value)} className="px-2.5 py-1.5 rounded-lg text-xs bg-surface-low text-secondary border border-amber-900/10" aria-label="Filter findings by industry">
+              {availableIndustries.map((industry) => <option key={industry} value={industry}>{industry}</option>)}
+            </select>
+            <div className="flex items-center gap-2 bg-surface-low px-3 py-1.5 rounded-lg border border-amber-900/10 text-xs shrink-0">
             <span className="material-symbols-outlined text-[15px] text-secondary">search</span>
             <input
               type="text"
@@ -278,6 +311,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
               placeholder="Search findings..."
               className="bg-transparent border-none outline-none text-xs text-on-surface placeholder:text-secondary/70 w-36 sm:w-48"
             />
+            </div>
           </div>
         </div>
 
@@ -285,7 +319,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
         <div className="mt-4">
           {filteredFindings.length ? (
             <ul className="divide-y divide-amber-900/10">
-              {filteredFindings.slice(0, 10).map((finding) => {
+              {pageFindings.map((finding) => {
                 const normSector = normalizeSector(finding.sector);
                 return (
                   <li
@@ -299,7 +333,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
                           {normSector}
                         </span>
                         <span className="text-[11px] text-secondary">
-                          {finding.sourceName} · {finding.createdAt ? new Date(finding.createdAt).toLocaleDateString() : "Recent"}
+                          {finding.sourceName} · {finding.createdAt ? new Date(finding.createdAt).toLocaleDateString() : "Recent"} {finding.industry ? `· ${finding.industry}` : ""}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-secondary leading-relaxed line-clamp-2">
@@ -340,7 +374,7 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
               </p>
               <button
                 type="button"
-                onClick={() => { setTimeFilter("all"); setSectorFilter("All Sectors"); setSearchQuery(""); }}
+                onClick={() => { setTimeFilter("all"); setCustomStart(""); setCustomEnd(""); setSectorFilter("All Sectors"); setIndustryFilter("All Industries"); setSearchQuery(""); }}
                 className="mt-3 text-xs font-semibold text-primary hover:underline"
               >
                 Reset filters
@@ -348,6 +382,15 @@ export function Dashboard({ user, counts, overview, recentFindings = [], onNavig
             </div>
           )}
         </div>
+        {filteredFindings.length > PAGE_SIZE && (
+          <div className="mt-3 flex items-center justify-between border-t border-amber-900/10 pt-3 text-xs">
+            <span className="text-secondary">Page {page} of {totalPages} · {filteredFindings.length} findings</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="rounded-md bg-surface-low px-3 py-1.5 font-semibold text-on-surface disabled:opacity-40">Previous</button>
+              <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-md bg-surface-low px-3 py-1.5 font-semibold text-on-surface disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Inspect Finding Detail Modal */}

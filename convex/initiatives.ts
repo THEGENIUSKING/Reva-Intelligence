@@ -102,6 +102,7 @@ export const saveEvaluatedInitiative = internalMutation({
     ownerId: v.string(),
     name: v.string(),
     sector: v.optional(v.string()),
+    industry: v.optional(v.string()),
     description: v.string(),
     problem: v.string(),
     solution: v.string(),

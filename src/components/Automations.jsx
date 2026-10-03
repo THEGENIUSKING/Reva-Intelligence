@@ -2,139 +2,87 @@ import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
+const platformPipelines = [
+  {
+    title: "Emerging-market scout",
+    trigger: "Daily at 05:00 WAT",
+    action: "Crawl active emerging/global sources, classify new articles with Gemini, and screen grounded opportunities in Reva.",
+  },
+  {
+    title: "Nigerian policy scout",
+    trigger: "Daily at 06:00 WAT",
+    action: "Crawl active Nigerian policy sources, classify new articles with Gemini, and screen grounded opportunities in Reva.",
+  },
+  {
+    title: "Vanta duplicate lookup",
+    trigger: "During Reva screening when Vanta read access is configured",
+    action: "Compare against live portfolio records; unavailable checks are recorded as not checked and do not block Reva scoring.",
+  },
+  {
+    title: "DIT screening alert",
+    trigger: "Reva score >= 66 and Nigeria viability is Medium or High",
+    action: "Queue the seven-criteria assessment through Resend when sender and DIT recipient are configured.",
+  },
+];
+
 export function Automations() {
   const identity = useQuery(api.users.currentIdentity);
   const canLoad = identity?.authorized === true;
-  const convexAutomations = useQuery(api.automations?.listAutomations || {}, canLoad ? {} : "skip") || [];
-  const toggleMutation = useMutation(api.automations?.toggleAutomation || {});
-  const createMutation = useMutation(api.automations?.createAutomation || {});
-
-  const [localAutomations, setLocalAutomations] = useState([
-    {
-      _id: "auto_1",
-      title: "Daily Emerging Market Tech Scout",
-      category: "Continuous Scraping",
-      trigger: "Cron: Daily at 05:00 WAT (04:00 UTC)",
-      action: "Crawl 35 Tier-A tech trackers · Extract articles & new venture candidates",
-      isActive: true,
-      lastRunAt: Date.now() - 3600000 * 2,
-      executionCount: 28,
-      status: "active"
-    },
-    {
-      _id: "auto_2",
-      title: "Daily Nigerian Policy & Legal Scout",
-      category: "Regulatory Scouting",
-      trigger: "Cron: Daily at 06:00 WAT (05:00 UTC)",
-      action: "Crawl CBN, SEC, NERC, FIRS circulars · Extract regulatory catalysts",
-      isActive: true,
-      lastRunAt: Date.now() - 3600000 * 1,
-      executionCount: 28,
-      status: "active"
-    },
-    {
-      _id: "auto_3",
-      title: "In-House Reva 7-Criteria Screening Engine",
-      category: "Venture Evaluation",
-      trigger: "Event: New venture candidate surfaced from scout",
-      action: "Score 7 IC criteria (Alignment, Problem, Solution, Market, Diff, Moat, Feasibility)",
-      isActive: true,
-      lastRunAt: Date.now() - 1800000,
-      executionCount: 54,
-      status: "active"
-    },
-    {
-      _id: "auto_4",
-      title: "Vanta Portfolio Deduplication Engine",
-      category: "Deduplication",
-      trigger: "Event: Post-screening assessment completed",
-      action: "Query Vanta API · Return duplicate outcome, count, and descriptions",
-      isActive: true,
-      lastRunAt: Date.now() - 1800000,
-      executionCount: 54,
-      status: "active"
-    },
-    {
-      _id: "auto_5",
-      title: "DIT Alert Dispatcher (digital-incubation@trium.ng)",
-      category: "Notifications",
-      trigger: "Event: Idea achieves passing score (>= 66/100, Grade B to A*)",
-      action: "Format Trium IC memorandum · Dispatch transactional email via Resend",
-      isActive: true,
-      lastRunAt: Date.now() - 7200000,
-      executionCount: 19,
-      status: "active"
-    },
-    {
-      _id: "auto_6",
-      title: "Continuous Scraping Live Heartbeat",
-      category: "Live Patrol",
-      trigger: "Event: Continuous Scout active on dashboard",
-      action: "Periodic 35-second rotation scan across curated feeds",
-      isActive: true,
-      lastRunAt: Date.now() - 35000,
-      executionCount: 312,
-      status: "active"
-    }
-  ]);
-
-  const automationsList = convexAutomations.length > 0 ? convexAutomations : localAutomations;
+  const automationsList = useQuery(api.automations.listAutomations, canLoad ? {} : "skip") || [];
+  const recentRuns = useQuery(api.scouting.listRecentRuns, canLoad ? { limit: 5 } : "skip") || [];
+  const emailLogs = useQuery(api.emailLogs.listLogs, canLoad ? {} : "skip") || [];
+  const toggleMutation = useMutation(api.automations.toggleAutomation);
+  const createMutation = useMutation(api.automations.createAutomation);
 
   // Custom Automation Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Scouting");
-  const [trigger, setTrigger] = useState("Cron Schedule");
+  const [actionType, setActionType] = useState("both_scouts");
+  const [intervalMinutes, setIntervalMinutes] = useState(1440);
   const [actionDesc, setActionDesc] = useState("");
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
   const handleToggle = async (id, currentStatus) => {
+    setError("");
     try {
-      if (toggleMutation) {
-        await toggleMutation({ id, isActive: !currentStatus });
-      }
-    } catch {
-      // Local fallback
+      await toggleMutation({ id, isActive: !currentStatus });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update this automation.");
     }
-    setLocalAutomations((prev) =>
-      prev.map((a) => (a._id === id ? { ...a, isActive: !currentStatus, status: !currentStatus ? "active" : "paused" } : a))
-    );
   };
 
   const handleCreateAutomation = async (e) => {
     e.preventDefault();
-    if (!title || !actionDesc) return;
+    if (!title.trim()) return;
 
-    const newAuto = {
-      _id: "custom_" + Date.now(),
-      title,
-      category,
-      trigger,
-      action: actionDesc,
-      isActive: true,
-      lastRunAt: Date.now(),
-      executionCount: 0,
-      status: "active"
+    setError("");
+    const actionLabels = {
+      both_scouts: "Run both emerging-market and Nigerian policy scouts",
+      emerging_scout: "Run the emerging-market scout",
+      policy_scout: "Run the Nigerian policy scout",
     };
-
     try {
-      if (createMutation) {
-        await createMutation({
-          title,
-          category,
-          trigger,
-          action: actionDesc,
-          description: actionDesc,
-        });
-      }
-    } catch {
-      // Local fallback
+      await createMutation({
+        title: title.trim(),
+        category,
+        trigger: `Every ${intervalMinutes} minutes`,
+        action: actionLabels[actionType],
+        description: actionDesc.trim() || actionLabels[actionType],
+        actionType,
+        intervalMinutes,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create this automation.");
+      return;
     }
 
-    setLocalAutomations([newAuto, ...localAutomations]);
-    setNotice(`Custom automation "${title}" created and activated.`);
+    setNotice(`Custom automation "${title}" is scheduled to run every ${intervalMinutes} minutes.`);
     setTitle("");
     setActionDesc("");
+    setActionType("both_scouts");
+    setIntervalMinutes(1440);
     setShowCreateModal(false);
   };
 
@@ -147,14 +95,13 @@ export function Automations() {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-primary/10 text-primary">
               Automations & Background Orchestration
             </span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[11px] font-medium text-secondary">All Systems Nominal</span>
+            <span className="text-[11px] font-medium text-secondary">Configuration and run history</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-on-surface font-headline">
             Automations & Scheduled Pipelines
           </h1>
           <p className="mt-0.5 text-xs text-secondary max-w-3xl leading-relaxed">
-            Manage autonomous triggers, crons, and action pipelines. Reva executes periodic scouting, sector classification, 7-criteria IC evaluations, and email alerts without manual intervention.
+            Review platform pipelines and schedule supported scout actions. Custom schedules run through Convex and can be paused or resumed.
           </p>
         </div>
 
@@ -177,33 +124,51 @@ export function Automations() {
           <button type="button" onClick={() => setNotice("")} className="text-emerald-700 text-xs">Dismiss</button>
         </div>
       )}
+      {error && (
+        <div role="alert" className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2.5 text-xs text-red-900">{error}</div>
+      )}
 
       {/* Metrics Row */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div className="p-4 rounded-xl bg-white/80 border border-amber-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">ACTIVE AUTOMATIONS</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">ACTIVE CUSTOM SCHEDULES</span>
           <span className="font-headline font-bold text-xl text-on-surface mt-1 block">
             {automationsList.filter((a) => a.isActive).length} / {automationsList.length} Active
           </span>
-          <span className="text-[10px] text-emerald-600 font-semibold">100% Operational</span>
+          <span className="text-[10px] text-secondary">Saved in Convex</span>
         </div>
 
         <div className="p-4 rounded-xl bg-white/80 border border-amber-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">SCHEDULED CRONS</span>
-          <span className="font-headline font-bold text-xl text-primary mt-1 block">2 Daily Runs</span>
-          <span className="text-[10px] text-secondary">05:00 & 06:00 WAT</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">RECENT SCOUT RUNS</span>
+          <span className="font-headline font-bold text-xl text-primary mt-1 block">{recentRuns.length} Recent Runs</span>
+          <span className="text-[10px] text-secondary">{recentRuns[0] ? `${recentRuns[0].status} · ${new Date(recentRuns[0].startedAt).toLocaleString()}` : "No runs recorded"}</span>
         </div>
 
         <div className="p-4 rounded-xl bg-white/80 border border-amber-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
           <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">DIT ALERTS DISPATCHED</span>
-          <span className="font-headline font-bold text-xl text-emerald-600 mt-1 block">19 Memos</span>
-          <span className="text-[10px] text-secondary">digital-incubation@trium.ng</span>
+          <span className="font-headline font-bold text-xl text-emerald-600 mt-1 block">{emailLogs.filter((log) => log.status === "delivered" || log.status === "sent").length} Delivered</span>
+          <span className="text-[10px] text-secondary">From recorded email logs</span>
         </div>
 
         <div className="p-4 rounded-xl bg-white/80 border border-amber-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">EXECUTION RELIABILITY</span>
-          <span className="font-headline font-bold text-xl text-on-surface mt-1 block">99.8%</span>
-          <span className="text-[10px] text-secondary">Idempotent Content Hashing</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">FAILED RECENT RUNS</span>
+          <span className="font-headline font-bold text-xl text-on-surface mt-1 block">{recentRuns.filter((run) => run.status === "failed" || run.status === "partial").length}</span>
+          <span className="text-[10px] text-secondary">Among the five most recent</span>
+        </div>
+      </section>
+
+      <section className="rounded-xl bg-white/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-amber-900/10">
+        <div className="pb-3 border-b border-amber-900/10">
+          <h2 className="text-sm font-bold text-on-surface font-headline uppercase tracking-wider">Platform-managed pipelines</h2>
+        </div>
+        <div className="divide-y divide-amber-900/10">
+          {platformPipelines.map((pipeline) => (
+            <div key={pipeline.title} className="grid gap-2 py-3 text-xs sm:grid-cols-[minmax(180px,.7fr)_minmax(180px,.8fr)_minmax(0,1.5fr)]">
+              <span className="font-semibold text-on-surface">{pipeline.title}</span>
+              <span className="text-secondary"><strong>Trigger:</strong> {pipeline.trigger}</span>
+              <span className="text-secondary"><strong>Action:</strong> {pipeline.action}</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -211,12 +176,13 @@ export function Automations() {
       <section className="rounded-xl bg-white/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-amber-900/10 space-y-3">
         <div className="flex items-center justify-between pb-3 border-b border-amber-900/10">
           <h2 className="text-sm font-bold text-on-surface font-headline uppercase tracking-wider">
-            Configured Triggers & Actions
+            Custom recurring scout schedules
           </h2>
-          <span className="text-xs text-secondary">{automationsList.length} Automations Configured</span>
+          <span className="text-xs text-secondary">{automationsList.length} saved</span>
         </div>
 
         <div className="divide-y divide-amber-900/10">
+          {!automationsList.length && <p className="py-6 text-center text-xs text-secondary">No custom scout schedules have been created.</p>}
           {automationsList.map((auto) => (
             <div
               key={auto._id}
@@ -229,9 +195,9 @@ export function Automations() {
                     {auto.category}
                   </span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    auto.isActive ? "bg-emerald-500/10 text-emerald-800" : "bg-surface-low text-secondary"
+                    auto.status === "failed" ? "bg-red-500/10 text-red-800" : auto.isActive ? "bg-emerald-500/10 text-emerald-800" : "bg-surface-low text-secondary"
                   }`}>
-                    {auto.isActive ? "ACTIVE" : "PAUSED"}
+                    {auto.status === "failed" ? "LAST RUN FAILED · RETRY SCHEDULED" : auto.isActive ? "SCHEDULED" : "PAUSED"}
                   </span>
                 </div>
 
@@ -247,8 +213,9 @@ export function Automations() {
                 </div>
 
                 <div className="text-[10px] text-secondary">
-                  Last executed: {auto.lastRunAt ? new Date(auto.lastRunAt).toLocaleString() : "Recently"} · Total Invocations: {auto.executionCount || 12}
+                  Last executed: {auto.lastRunAt ? new Date(auto.lastRunAt).toLocaleString() : "No execution recorded"} · Total invocations: {auto.executionCount ?? 0}
                 </div>
+                {auto.lastError && <p className="text-[11px] text-red-700">{auto.lastError}</p>}
               </div>
 
               {/* Action Buttons */}
@@ -326,31 +293,46 @@ export function Automations() {
 
                 <div>
                   <label className="block font-bold text-[10px] uppercase tracking-wider text-secondary mb-1">
-                    Trigger Event
+                    Run interval
                   </label>
                   <select
-                    value={trigger}
-                    onChange={(e) => setTrigger(e.target.value)}
+                      value={intervalMinutes}
+                      onChange={(e) => setIntervalMinutes(Number(e.target.value))}
                     className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white"
                   >
-                    <option value="Cron: Daily Schedule">Cron: Daily Schedule</option>
-                    <option value="Event: New Article Scraped">Event: New Article Scraped</option>
-                    <option value="Event: Passing Score (>= 66)">Event: Passing Score (&ge; 66)</option>
-                    <option value="Event: High Viability Detected">Event: High Viability Detected</option>
+                      <option value={60}>Every hour</option>
+                      <option value={360}>Every 6 hours</option>
+                      <option value={720}>Every 12 hours</option>
+                      <option value={1440}>Every day</option>
+                      <option value={10080}>Every week</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block font-bold text-[10px] uppercase tracking-wider text-secondary mb-1">
-                  Action Execution Details *
+                  Scout action
+                </label>
+                <select
+                  value={actionType}
+                  onChange={(event) => setActionType(event.target.value)}
+                  className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white"
+                >
+                  <option value="both_scouts">Run both scout groups</option>
+                  <option value="emerging_scout">Run emerging-market scout</option>
+                  <option value="policy_scout">Run Nigerian policy scout</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[10px] uppercase tracking-wider text-secondary mb-1">
+                  Notes (Optional)
                 </label>
                 <textarea
-                  required
-                  rows={3}
+                  rows={2}
                   value={actionDesc}
                   onChange={(e) => setActionDesc(e.target.value)}
-                  placeholder="Describe the action executed when the trigger fires (e.g. Run 7-criteria screening on AgriTech articles, dispatch alert to digital-incubation@trium.ng...)"
+                  placeholder="Add a note for operators"
                   className="w-full rounded-lg border border-amber-900/15 bg-surface-low px-3 py-2 text-xs outline-none focus:border-primary focus:bg-white resize-none"
                 />
               </div>
@@ -367,7 +349,7 @@ export function Automations() {
                   type="submit"
                   className="px-4 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-container shadow-xs"
                 >
-                  Create & Activate
+                  Create & Schedule
                 </button>
               </div>
             </form>

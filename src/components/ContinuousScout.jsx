@@ -7,7 +7,7 @@ import { ASSESSMENT_GUIDE_CRITERIA } from "./GlobalBenchmark";
 export function ContinuousScout({ onNavigate }) {
   const [now, setNow] = useState(() => Date.now());
   const [activeTab, setActiveTab] = useState("emerging"); // 'emerging' | 'policy' | 'screened' | 'articles'
-  const [scoutStatus, setScoutStatus] = useState("Active / Patrolling"); // 'Active / Patrolling' | 'In Progress' | 'Idle / Standby' | 'Failed'
+  const [scoutStatus, setScoutStatus] = useState("Scheduled");
   const [isRunning, setIsRunning] = useState(false);
   const [analyzingId, setAnalyzingId] = useState("");
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
@@ -16,7 +16,8 @@ export function ContinuousScout({ onNavigate }) {
 
   // Filters & Search
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
-  const [timeFilter, setTimeFilter] = useState("all"); // '24h' | '7d' | '30d' | 'all'
+  const [industryFilter, setIndustryFilter] = useState("All Industries");
+  const [timeFilter, setTimeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all"); // 'all' | 'A*' | 'A' | 'B' | 'C' | 'D'
 
@@ -30,6 +31,15 @@ export function ContinuousScout({ onNavigate }) {
 
   // Convex Queries & Actions
   const overview = useQuery(api.scouting.getOverview, { now });
+  const recentRuns = useQuery(api.scouting.listRecentRuns, { limit: 1 }) || [];
+  const latestRun = recentRuns[0];
+  const runStatusLabel = isRunning || latestRun?.status === "running"
+    ? "In Progress"
+    : latestRun?.status === "failed"
+    ? "Failed"
+    : latestRun?.status === "partial"
+    ? "Partial"
+    : scoutStatus;
   const recentFindings = useQuery(api.scouting.listRecentFindings, { limit: 60 }) || [];
   const recentArticles = useQuery(api.scouting.listRecentArticles, { limit: 100 }) || [];
   const initiatives = useQuery(api.initiatives.listInitiatives, { limit: 50 }) || [];
@@ -49,6 +59,13 @@ export function ContinuousScout({ onNavigate }) {
     if (recentArticles) recentArticles.forEach(x => { if (x.aiSector) s.add(normalizeSector(x.aiSector)); });
     return ["All Sectors", ...Array.from(s).filter(Boolean).sort()];
   }, [recentFindings, initiatives, recentArticles]);
+  const availableIndustries = useMemo(() => {
+    const values = new Set();
+    recentFindings.forEach((item) => item.industry && values.add(item.industry));
+    initiatives.forEach((item) => item.industry && values.add(item.industry));
+    recentArticles.forEach((item) => item.industry && values.add(item.industry));
+    return ["All Industries", ...Array.from(values).sort()];
+  }, [recentFindings, initiatives, recentArticles]);
 
   // Background Auto-Run Heartbeat: executes periodic continuous check every 35 seconds
   useEffect(() => {
@@ -56,14 +73,10 @@ export function ContinuousScout({ onNavigate }) {
 
     const interval = setInterval(() => {
       setNow(Date.now());
-      // Keep status active and healthy
-      if (!isRunning) {
-        setScoutStatus("Active / Patrolling");
-      }
     }, 35000);
 
     return () => clearInterval(interval);
-  }, [recoverStaleRuns, isRunning]);
+  }, [recoverStaleRuns]);
 
   // Unified Concurrent Run: Launches both Emerging Tech and Policy scout concurrently
   const handleLaunchFullPatrol = async () => {
@@ -79,11 +92,19 @@ export function ContinuousScout({ onNavigate }) {
         runNow({ scoutType: "nigeria_policy" })
       ]);
 
-      const countEmerging = resEmerging.status === "fulfilled" ? (resEmerging.value.articlesFound || 0) : 0;
-      const countPolicy = resPolicy.status === "fulfilled" ? (resPolicy.value.articlesFound || 0) : 0;
-
-      setNotice(`Full patrol completed successfully. Ingested ${countEmerging} emerging tech signals and ${countPolicy} Nigerian policy circulars.`);
-      setScoutStatus("Active / Patrolling");
+      const emerging = resEmerging.status === "fulfilled" ? resEmerging.value : null;
+      const policy = resPolicy.status === "fulfilled" ? resPolicy.value : null;
+      const successfulRuns = [emerging, policy].filter((result) => result && result.status !== "failed");
+      const failedRuns = 2 - successfulRuns.length;
+      const partialRuns = [emerging, policy].filter((result) => result?.status === "partial").length;
+      if (!successfulRuns.length) {
+        throw new Error([emerging?.message, policy?.message].filter(Boolean).join(" ") || "Both scout runs failed.");
+      }
+      const countEmerging = emerging?.status !== "failed" ? emerging?.articlesFound || 0 : 0;
+      const countPolicy = policy?.status !== "failed" ? policy?.articlesFound || 0 : 0;
+      const incomplete = failedRuns > 0 || partialRuns > 0;
+      setNotice(`${incomplete ? "Patrol partially completed" : "Patrol completed"}. Captured ${countEmerging} emerging-tech and ${countPolicy} policy articles${incomplete ? "; inspect run status and error details above." : "."}`);
+      setScoutStatus(incomplete ? "Partial" : "Scheduled");
       setNow(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Concurrent scout patrol encountered an issue.");
@@ -105,17 +126,15 @@ export function ContinuousScout({ onNavigate }) {
       const mappedCandidates = candidates.map(c => ({
         ideaName: c.ideaName || c.name || "Unknown",
         sector: c.sector || "Unknown",
+        ...(c.industry ? { industry: c.industry } : {}),
         summary: c.summary || c.description || "",
         articleUrl: c.articleUrl || c.sourceUrl || ""
       }));
       
       const res = await screenBatch({ scoutType, candidates: mappedCandidates });
-      if (res.errors.length) {
-        console.warn("Screening completed with errors:", res.errors);
-      }
-      setNotice(`Successfully screened ${res.processed} opportunities. Check the Screened tab for detailed 7-criteria results.`);
+      setNotice(`Screened ${res.processed} of ${candidates.length} opportunities. Check the Screened tab for detailed Reva 7-criteria results.${res.errors.length ? ` ${res.errors[0]}` : ""}`);
       setActiveTab("screened");
-      setScoutStatus("Active / Patrolling");
+      setScoutStatus(res.errors.length ? "Partial" : "Scheduled");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to screen batch.");
       setScoutStatus("Failed");
@@ -135,6 +154,7 @@ export function ContinuousScout({ onNavigate }) {
     setScoutStatus("In Progress");
 
     let duplicateCount = 0;
+    let failedCount = 0;
     try {
       for (const opp of candidates) {
         try {
@@ -144,14 +164,14 @@ export function ContinuousScout({ onNavigate }) {
             sector: opp.sector || "Unknown",
           });
           if (outcome.duplicateFound) duplicateCount++;
-        } catch (e) {
-          // Ignore individual dedupe errors to continue batch
+        } catch {
+          failedCount++;
         }
       }
-      setNotice(`Checked ${candidates.length} opportunities. Found ${duplicateCount} potential duplicates in Vanta Portfolio.`);
-      setScoutStatus("Active / Patrolling");
+      setNotice(`Checked ${candidates.length - failedCount} opportunities. Found ${duplicateCount} potential duplicates${failedCount ? `; ${failedCount} checks failed and have no verdict.` : " in Vanta Portfolio."}`);
+      setScoutStatus(failedCount ? "Partial" : "Scheduled");
     } catch (err) {
-      setError("Failed to check batch duplicates.");
+      setError(err instanceof Error ? err.message : "Vanta duplicate checking failed.");
       setScoutStatus("Failed");
     } finally {
       setIsCheckingBatch(false);
@@ -170,15 +190,7 @@ export function ContinuousScout({ onNavigate }) {
       });
       setVantaDedupeOutcome(outcome);
     } catch (err) {
-      // Fallback local dedupe outcome simulation if offline
-      setVantaDedupeOutcome({
-        duplicateFound: false,
-        duplicateCount: 0,
-        verdict: "NEW",
-        highestSimilarity: 0.14,
-        matchingDuplicates: [],
-        message: "No duplicates found in Vanta Idea Bank. Verified as unique commercial concept."
-      });
+      setError(err instanceof Error ? err.message : "Vanta duplicate check failed; no verdict was produced.");
     } finally {
       setCheckingDedupeId("");
     }
@@ -189,7 +201,9 @@ export function ContinuousScout({ onNavigate }) {
     "24h": Date.now() - 24 * 60 * 60 * 1000,
     "7d": Date.now() - 7 * 24 * 60 * 60 * 1000,
     "30d": Date.now() - 30 * 24 * 60 * 60 * 1000,
-    "all": 0,
+    month: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime(),
+    year: new Date(new Date().getFullYear(), 0, 1).getTime(),
+    all: 0,
   };
 
   // Filtered Emerging Tech Findings
@@ -201,13 +215,14 @@ export function ContinuousScout({ onNavigate }) {
         const itemTime = item.createdAt || 0;
         if (threshold > 0 && itemTime < threshold) return false;
         if (sectorFilter !== "All Sectors" && normalizeSector(item.sector) !== sectorFilter) return false;
+        if (industryFilter !== "All Industries" && item.industry !== industryFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           return `${item.ideaName} ${item.summary} ${item.sourceName}`.toLowerCase().includes(q);
         }
         return true;
       });
-  }, [recentFindings, timeFilter, sectorFilter, searchQuery]);
+  }, [recentFindings, timeFilter, sectorFilter, industryFilter, searchQuery]);
 
   // Filtered Nigerian Policy & Regulatory Findings
   const policyFindings = useMemo(() => {
@@ -218,13 +233,14 @@ export function ContinuousScout({ onNavigate }) {
         const itemTime = item.createdAt || 0;
         if (threshold > 0 && itemTime < threshold) return false;
         if (sectorFilter !== "All Sectors" && normalizeSector(item.sector) !== sectorFilter) return false;
+        if (industryFilter !== "All Industries" && item.industry !== industryFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           return `${item.ideaName} ${item.summary} ${item.sourceName}`.toLowerCase().includes(q);
         }
         return true;
       });
-  }, [recentFindings, timeFilter, sectorFilter, searchQuery]);
+  }, [recentFindings, timeFilter, sectorFilter, industryFilter, searchQuery]);
 
   // Filtered Screened Opportunities (7-Criteria)
   const screenedOpportunities = useMemo(() => {
@@ -234,6 +250,7 @@ export function ContinuousScout({ onNavigate }) {
         const itemTime = item.createdAt || 0;
         if (threshold > 0 && itemTime < threshold) return false;
         if (sectorFilter !== "All Sectors" && normalizeSector(item.sector) !== sectorFilter) return false;
+        if (industryFilter !== "All Industries" && item.industry !== industryFilter) return false;
         if (gradeFilter !== "all" && item.vantaGrade !== gradeFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -241,7 +258,7 @@ export function ContinuousScout({ onNavigate }) {
         }
         return true;
       });
-  }, [initiatives, timeFilter, sectorFilter, gradeFilter, searchQuery]);
+  }, [initiatives, timeFilter, sectorFilter, industryFilter, gradeFilter, searchQuery]);
 
   // Filtered Articles Archive
   const filteredArticles = useMemo(() => {
@@ -250,18 +267,19 @@ export function ContinuousScout({ onNavigate }) {
       const itemTime = item.processedAt || 0;
       if (threshold > 0 && itemTime < threshold) return false;
       if (sectorFilter !== "All Sectors" && normalizeSector(item.aiSector) !== sectorFilter) return false;
+      if (industryFilter !== "All Industries" && item.industry !== industryFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return `${item.title} ${item.sourceName} ${item.content || ""}`.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [recentArticles, timeFilter, sectorFilter, searchQuery]);
+  }, [recentArticles, timeFilter, sectorFilter, industryFilter, searchQuery]);
 
   // Reset pagination on tab or filter change
   useEffect(() => {
     setPage(1);
-  }, [activeTab, sectorFilter, timeFilter, searchQuery, gradeFilter]);
+  }, [activeTab, sectorFilter, industryFilter, timeFilter, searchQuery, gradeFilter]);
 
   // Paginated Slices (10 per batch)
   const paginatedEmerging = emergingFindings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -292,16 +310,16 @@ export function ContinuousScout({ onNavigate }) {
               {/* Dynamic Status Indicator */}
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-low border border-amber-900/10 text-[11px] font-semibold">
                 <span className={`w-2 h-2 rounded-full ${
-                  scoutStatus === "In Progress"
+                  runStatusLabel === "In Progress"
                     ? "bg-amber-500 animate-ping"
-                    : scoutStatus === "Active / Patrolling"
+                    : runStatusLabel === "Scheduled"
                     ? "bg-emerald-500 animate-pulse"
-                    : scoutStatus === "Failed"
+                    : runStatusLabel === "Failed"
                     ? "bg-red-500"
                     : "bg-gray-400"
                 }`} />
-                <span className={scoutStatus === "In Progress" ? "text-amber-800" : "text-on-surface"}>
-                  {scoutStatus}
+                <span className={runStatusLabel === "In Progress" ? "text-amber-800" : "text-on-surface"}>
+                  {runStatusLabel}
                 </span>
               </div>
             </div>
@@ -309,7 +327,7 @@ export function ContinuousScout({ onNavigate }) {
               Autonomous Continuous Scout & Viability Patrol
             </h1>
             <p className="mt-0.5 text-xs text-secondary max-w-3xl leading-relaxed">
-              Autonomously patrolling {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} curated emerging market publications and Nigerian regulatory authorities (CBN, SEC, NERC, FIRS). Real-time Gemini sector categorization, in-house 7-Criteria screening, and Vanta deduplication outcomes.
+              Daily scheduled runs monitor {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} active registry sources. Gemini classification and Reva screening require the configured Gemini service; Vanta matching is a separate optional check.
             </p>
           </div>
 
@@ -324,7 +342,7 @@ export function ContinuousScout({ onNavigate }) {
               <span className="material-symbols-outlined text-[17px]">
                 {isRunning ? "hourglass_top" : "sync"}
               </span>
-              <span>{isRunning ? "Patrolling {((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0))} Sources...��" : "Launch Concurrent Scout Patrol"}</span>
+              <span>{isRunning ? "Running both scout groups..." : "Run Both Scout Groups"}</span>
             </button>
           </div>
         </div>
@@ -334,25 +352,25 @@ export function ContinuousScout({ onNavigate }) {
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">MONITORED SOURCES</span>
             <span className="font-headline font-bold text-lg text-on-surface mt-0.5 block">{((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0)) || 0} Active Feeds</span>
-            <span className="text-[10px] text-secondary">35 Emerging · 15 Global · 9 Regulators</span>
+            <span className="text-[10px] text-secondary">Configured sources in the registry</span>
           </div>
 
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">ARTICLES INGESTED (24H)</span>
-            <span className="font-headline font-bold text-lg text-primary mt-0.5 block">{overview?.articlesLastDay || recentArticles.length || 0} Captured</span>
-            <span className="text-[10px] text-secondary">Auto-parsed & Sector Tagged</span>
+            <span className="font-headline font-bold text-lg text-primary mt-0.5 block">{overview?.articlesLastDay ?? 0} Captured</span>
+            <span className="text-[10px] text-secondary">{overview?.geminiConfigured ? "Gemini enabled" : "Gemini not configured"}</span>
           </div>
 
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">IDEAS SURFACED (24H)</span>
-            <span className="font-headline font-bold text-lg text-emerald-600 mt-0.5 block">{overview?.ideasLastDay || recentFindings.length || 8} Opportunities</span>
-            <span className="text-[10px] text-secondary">7-Criteria Scored in Reva</span>
+            <span className="font-headline font-bold text-lg text-emerald-600 mt-0.5 block">{overview?.ideasLastDay ?? 0} Opportunities</span>
+            <span className="text-[10px] text-secondary">New AI-derived findings</span>
           </div>
 
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">DEDUPLICATION ENGINE</span>
-            <span className="font-headline font-bold text-lg text-on-surface mt-0.5 block">100% On-Device</span>
-            <span className="text-[10px] text-secondary">Vanta Read API Synced</span>
+            <span className="font-headline font-bold text-lg text-on-surface mt-0.5 block">{overview?.vantaReadApiConfigured ? "Connected" : "Unavailable"}</span>
+            <span className="text-[10px] text-secondary">Vanta duplicate check</span>
           </div>
         </div>
       </section>
@@ -415,6 +433,8 @@ export function ContinuousScout({ onNavigate }) {
             { id: "24h", label: "24h" },
             { id: "7d", label: "7d" },
             { id: "30d", label: "30d" },
+            { id: "month", label: "This month" },
+            { id: "year", label: "This year" },
           ].map((t) => (
             <button
               key={t.id}
@@ -463,6 +483,15 @@ export function ContinuousScout({ onNavigate }) {
               ))}
             </select>
           )}
+
+          <select
+            value={industryFilter}
+            onChange={(event) => setIndustryFilter(event.target.value)}
+            className="px-2 py-1 rounded-lg text-[11px] font-medium bg-surface-lowest text-secondary border border-amber-900/10"
+            aria-label="Filter by industry"
+          >
+            {availableIndustries.map((industry) => <option key={industry} value={industry}>{industry}</option>)}
+          </select>
 
           {/* Grade filter for screened tab */}
           {activeTab === "screened" && (
@@ -539,9 +568,8 @@ export function ContinuousScout({ onNavigate }) {
                     <span className="text-[11px] text-secondary">
                       {item.sourceName} · {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "Recent"}
                     </span>
-                    {/* Unique session badge */}
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-800">
-                      NEW (Session)
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${item.isNewInSession ? "bg-emerald-500/10 text-emerald-800" : "bg-surface-low text-secondary"}`}>
+                      {item.isNewInSession ? `New · ${item.sessionDate || "first seen"}` : "Previously scouted"}
                     </span>
                   </div>
                   <p className="text-xs text-secondary leading-relaxed max-w-3xl">{item.summary}</p>
@@ -661,7 +689,7 @@ export function ContinuousScout({ onNavigate }) {
                   {item.vantaScore >= 66 && (
                     <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/10 text-emerald-800 text-xs font-semibold">
                       <span className="material-symbols-outlined text-[15px]">mark_email_read</span>
-                      <span>Auto-Dispatched to DIT</span>
+                      <span>{item.emailDispatched ? "Delivered to DIT" : "Passed · email delivery not confirmed"}</span>
                     </div>
                   )}
                 </div>
@@ -669,11 +697,11 @@ export function ContinuousScout({ onNavigate }) {
                 {/* 7-Criteria Score Breakdown Grid */}
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 text-xs">
                   {item.criteriaScores && typeof item.criteriaScores === "object" ? (
-                    Object.entries(item.criteriaScores).slice(0, 4).map(([k, val]) => (
+                    Object.entries(item.criteriaScores).map(([k, val]) => (
                       <div key={k} className="p-2.5 rounded-lg bg-surface-low border border-amber-900/10">
                         <div className="flex justify-between font-bold text-[10px] uppercase text-secondary mb-1">
                           <span className="truncate">{k.replace(/([A-Z])/g, " $1")}</span>
-                          <span className="text-primary font-headline">{val.score}/{val.max}</span>
+                          <span className="text-primary font-headline">{val.score}/{val.maxScore}</span>
                         </div>
                         <p className="text-[11px] text-on-surface leading-tight line-clamp-2">{val.rationale}</p>
                       </div>
@@ -692,9 +720,10 @@ export function ContinuousScout({ onNavigate }) {
                   <button
                     type="button"
                     onClick={() => handleCheckVantaDedupe(item)}
-                    className="text-primary hover:underline text-xs font-semibold flex items-center gap-1"
+                    disabled={checkingDedupeId === item.name}
+                    className="text-primary hover:underline text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
                   >
-                    <span>Check Vanta Dedupe Outcome</span>
+                    <span>{checkingDedupeId === item.name ? "Checking Vanta..." : "Check Vanta Dedupe Outcome"}</span>
                     <span className="material-symbols-outlined text-[13px]">open_in_new</span>
                   </button>
                 </div>
@@ -727,7 +756,7 @@ export function ContinuousScout({ onNavigate }) {
                         {normalizeSector(art.aiSector)}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-low text-secondary border border-amber-900/10">
-                        {idx < 4 ? "NEW (Session)" : "Previously Crawled"}
+                        {art.isNewInSession ? `New · ${art.sessionDate || "first seen"}` : "Previously crawled"}
                       </span>
                     </div>
                     <div className="text-xs text-secondary flex items-center gap-2">
@@ -802,7 +831,7 @@ export function ContinuousScout({ onNavigate }) {
                   <h3 className="text-base font-bold text-on-surface font-headline">
                     Vanta Portfolio & Idea Bank Duplicate Outcome
                   </h3>
-                  <p className="text-xs text-secondary">Verified via Vanta Read API & On-Device Embedding Similarity</p>
+                  <p className="text-xs text-secondary">Live Vanta portfolio read · lexical similarity screening</p>
                 </div>
               </div>
               <button
@@ -858,7 +887,7 @@ export function ContinuousScout({ onNavigate }) {
                 </div>
               ) : (
                 <div className="p-3 rounded-lg bg-surface-low text-secondary text-[11px] leading-relaxed">
-                  Zero semantic overlap with active initiatives in Vanta Idea Bank. This idea qualifies for Stage-1 incubation review without portfolio conflict.
+                  No portfolio record crossed the configured similarity threshold. This does not prove that the concept is unique.
                 </div>
               )}
             </div>

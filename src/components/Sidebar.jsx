@@ -23,7 +23,6 @@ export function Sidebar({ activeTab, setActiveTab, counts, collapsed = false, on
       id: "automations",
       label: "Automations",
       icon: "smart_toy",
-      badge: "6 Active",
     },
     {
       id: "sources",

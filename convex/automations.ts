@@ -1,109 +1,71 @@
-import { query, mutation, action } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { isApprovedVantaIdentity } from "./access";
+import type { Id } from "./_generated/dataModel";
 
-const DEFAULT_AUTOMATIONS = [
-  {
-    key: "auto_scout_emerging",
-    title: "Daily Emerging Market Tech Scout",
-    description: "Autonomously crawls 35 Tier-A tech publications across Africa, SE Asia, and India at 05:00 WAT, extracting articles and new candidate venture concepts.",
-    trigger: "Cron: Daily at 05:00 WAT (04:00 UTC)",
-    action: "Run Emerging Tech Scout & Sector Classification",
-    category: "Continuous Scraping",
-    isActive: true,
-    executionCount: 14,
-    status: "active"
-  },
-  {
-    key: "auto_scout_policy",
-    title: "Daily Nigerian Policy & Regulatory Scout",
-    description: "Autonomously crawls CBN, SEC, NERC, FIRS, and NITDA circulars & legal gazettes at 06:00 WAT, identifying regulatory catalysts and compliance moats.",
-    trigger: "Cron: Daily at 06:00 WAT (05:00 UTC)",
-    action: "Run Policy Scout & Regulatory Catalyst Extractor",
-    category: "Regulatory Scouting",
-    isActive: true,
-    executionCount: 14,
-    status: "active"
-  },
-  {
-    key: "auto_reva_7criteria_screening",
-    title: "In-House Reva 7-Criteria Screening",
-    description: "Evaluates every newly scouted idea against Trium's 7 Investment Committee criteria (Strategic Alignment, Customer-Problem, Solution Fit, Market Opportunity, Differentiation, Sustainable Advantage, Feasibility = 100 pts) with Google Search grounding.",
-    trigger: "Event: New candidate idea surfaced",
-    action: "Execute In-House Gemini 7-Criteria Assessment",
-    category: "Venture Evaluation",
-    isActive: true,
-    executionCount: 28,
-    status: "active"
-  },
-  {
-    key: "auto_vanta_dedupe",
-    title: "Vanta Idea Bank Duplicate Check",
-    description: "Compares evaluated opportunities against the Vanta portfolio and idea bank to detect exact and near-similar duplicates with itemized descriptions.",
-    trigger: "Event: Post-screening assessment completed",
-    action: "Query Vanta Read API & Calculate Semantic Overlap",
-    category: "Deduplication",
-    isActive: true,
-    executionCount: 28,
-    status: "active"
-  },
-  {
-    key: "auto_dit_alert",
-    title: "DIT Alert Dispatcher (digital-incubation@trium.ng)",
-    description: "Automatically formats and emails investment memos for high-conviction venture opportunities (Grade B to A* / score >= 66) to the Digital Incubation Team via Resend.",
-    trigger: "Event: Idea achieves passing score (>= 66/100)",
-    action: "Format Memorandum & Dispatch Alert Email via Resend",
-    category: "Notification",
-    isActive: true,
-    executionCount: 9,
-    status: "active"
-  },
-  {
-    key: "auto_live_heartbeat",
-    title: "Continuous Scraping Live Heartbeat",
-    description: "Maintains real-time continuous background patrol across monitored sources during active operator sessions.",
-    trigger: "Event: Continuous Scout session active",
-    action: "Periodic 30-Second Source Rotation Patrol",
-    category: "Live Patrol",
-    isActive: true,
-    executionCount: 142,
-    status: "active"
+const actionType = v.union(v.literal("both_scouts"), v.literal("emerging_scout"), v.literal("policy_scout"));
+const actionLabels = {
+  both_scouts: "Run both emerging-market and Nigerian policy scouts",
+  emerging_scout: "Run the emerging-market scout",
+  policy_scout: "Run the Nigerian policy scout",
+} as const;
+
+function formatInterval(minutes: number) {
+  if (minutes % 10080 === 0) {
+    const weeks = minutes / 10080;
+    return `Every ${weeks} ${weeks === 1 ? "week" : "weeks"}`;
   }
-];
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `Every ${days} ${days === 1 ? "day" : "days"}`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `Every ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  return `Every ${minutes} minutes`;
+}
 
 export const listAutomations = query({
   args: {},
+  returns: v.array(v.any()),
   handler: async (ctx) => {
-    const existing = await ctx.db.query("automations").collect();
-    if (existing.length > 0) return existing;
-
-    // Return default automations with mock IDs if not yet seeded
-    return DEFAULT_AUTOMATIONS.map((a, idx) => ({
-      _id: `auto_${idx}`,
-      _creationTime: Date.now() - 86400000 * 3,
-      ...a,
-      lastRunAt: Date.now() - 3600000 * (idx + 1),
-      createdAt: Date.now() - 86400000 * 7,
-    }));
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    return await ctx.db.query("automations").withIndex("by_createdAt").order("desc").take(100);
   },
 });
 
 export const toggleAutomation = mutation({
-  args: { id: v.string(), isActive: v.boolean() },
+  args: { id: v.id("automations"), isActive: v.boolean() },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    try {
-      const doc = await ctx.db.get(args.id as any);
-      if (doc) {
-        await ctx.db.patch(doc._id, {
-          isActive: args.isActive,
-          status: args.isActive ? "active" : "paused"
-        });
-        return true;
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const automation = await ctx.db.get(args.id);
+    if (!automation) throw new Error("Automation was not found.");
+    if (automation.scheduledFunctionId) {
+      try {
+        await ctx.scheduler.cancel(automation.scheduledFunctionId);
+      } catch {
+        // The scheduled function may already be running.
       }
-    } catch {
-      // Ignore if mock ID
     }
-    return true;
+    let scheduledFunctionId: Id<"_scheduled_functions"> | undefined;
+    if (args.isActive && automation.actionType && automation.intervalMinutes) {
+      scheduledFunctionId = await ctx.scheduler.runAfter(
+        automation.intervalMinutes * 60 * 1000,
+        internal.scouting.runCustomScoutSchedule,
+        { id: args.id },
+      );
+    }
+    await ctx.db.patch(args.id, {
+      isActive: args.isActive,
+      status: args.isActive ? (scheduledFunctionId ? "scheduled" : "configured") : "paused",
+      scheduledFunctionId,
+    });
+    return null;
   },
 });
 
@@ -114,21 +76,68 @@ export const createAutomation = mutation({
     trigger: v.string(),
     action: v.string(),
     category: v.string(),
+    actionType,
+    intervalMinutes: v.number(),
   },
+  returns: v.id("automations"),
   handler: async (ctx, args) => {
-    const key = "custom_" + Date.now();
-    return await ctx.db.insert("automations", {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    if (!Number.isInteger(args.intervalMinutes) || args.intervalMinutes < 60 || args.intervalMinutes > 43200) {
+      throw new Error("Custom scout schedules must run between once per hour and once every 30 days.");
+    }
+    const key = `custom_${crypto.randomUUID()}`;
+    const id = await ctx.db.insert("automations", {
       key,
       title: args.title,
       description: args.description,
-      trigger: args.trigger,
-      action: args.action,
+      trigger: formatInterval(args.intervalMinutes),
+      action: actionLabels[args.actionType],
+      actionType: args.actionType,
+      intervalMinutes: args.intervalMinutes,
       category: args.category || "Custom",
       isActive: true,
-      lastRunAt: Date.now(),
       executionCount: 0,
-      status: "active",
+      status: "scheduled",
       createdAt: Date.now(),
     });
+    const scheduledFunctionId = await ctx.scheduler.runAfter(
+      args.intervalMinutes * 60 * 1000,
+      internal.scouting.runCustomScoutSchedule,
+      { id },
+    );
+    await ctx.db.patch(id, { scheduledFunctionId });
+    return id;
+  },
+});
+
+export const getAutomationForExecution = internalQuery({
+  args: { id: v.id("automations") },
+  returns: v.any(),
+  handler: async (ctx, args) => await ctx.db.get(args.id),
+});
+
+export const recordScheduledExecution = internalMutation({
+  args: { id: v.id("automations"), succeeded: v.boolean(), error: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const automation = await ctx.db.get(args.id);
+    if (!automation) return null;
+    const patch: { lastRunAt: number; executionCount: number; status: string; lastError?: string; scheduledFunctionId?: Id<"_scheduled_functions"> } = {
+      lastRunAt: Date.now(),
+      executionCount: automation.executionCount + 1,
+      status: args.succeeded ? "scheduled" : "failed",
+      lastError: args.error,
+      scheduledFunctionId: undefined,
+    };
+    if (automation.isActive && automation.actionType && automation.intervalMinutes) {
+      patch.scheduledFunctionId = await ctx.scheduler.runAfter(
+        automation.intervalMinutes * 60 * 1000,
+        internal.scouting.runCustomScoutSchedule,
+        { id: args.id },
+      );
+    }
+    await ctx.db.patch(args.id, patch);
+    return null;
   },
 });

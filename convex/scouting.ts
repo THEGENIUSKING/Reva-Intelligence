@@ -24,12 +24,14 @@ const findingDoc = v.object({
   _id: v.id("scoutFindings"), _creationTime: v.number(), runId: v.id("scoutRuns"), scoutType,
   articleTitle: v.string(), articleUrl: v.string(), sourceName: v.string(), sourceUrl: v.string(),
   publishedAt: v.optional(v.string()), ideaName: v.string(), sector: v.string(), summary: v.string(),
+  industry: v.optional(v.string()), isNewInSession: v.optional(v.boolean()), sessionDate: v.optional(v.string()), sessionId: v.optional(v.string()),
   status: v.union(v.literal("new"), v.literal("reviewed"), v.literal("dismissed")), createdAt: v.number(),
 });
 const articleValidator = v.object({
   urlHash: v.string(), url: v.string(), title: v.string(), sourceName: v.string(), sourceType: v.string(),
   contentHash: v.string(), content: v.optional(v.string()), aiSummary: v.optional(v.string()),
-  potentialIdea: v.optional(v.string()), aiSector: v.optional(v.string()),
+  potentialIdea: v.optional(v.string()), aiSector: v.optional(v.string()), industry: v.optional(v.string()),
+  isNewInSession: v.optional(v.boolean()), sessionDate: v.optional(v.string()), sessionId: v.optional(v.string()),
   processedAt: v.number(), status: v.string(), publishedDate: v.optional(v.string()),
 });
 const articleDoc = v.object({ _id: v.id("scrapedItems"), _creationTime: v.number(), ...articleValidator.fields });
@@ -75,7 +77,19 @@ export const listRecentArticles = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
-    return await ctx.db.query("scrapedItems").withIndex("by_processedAt").order("desc").take(Math.max(1, Math.min(args.limit ?? 60, 100)));
+    const sessions = await ctx.db.query("scoutArticleSessions").withIndex("by_processedAt").order("desc").take(Math.max(1, Math.min(args.limit ?? 60, 100)));
+    const rows = await Promise.all(sessions.map(async (session) => {
+      const article = await ctx.db.get(session.articleId);
+      if (!article) return null;
+      return {
+        ...article,
+        isNewInSession: session.isNewInSession,
+        sessionDate: session.sessionDate,
+        sessionId: String(session.runId),
+        processedAt: session.processedAt,
+      };
+    }));
+    return rows.filter((row): row is NonNullable<typeof row> => row !== null);
   },
 });
 
@@ -137,7 +151,7 @@ export const runNow = action({
 
 export const analyzeArticle = action({
   args: { id: v.id("scrapedItems") },
-  returns: v.object({ summary: v.string(), potentialIdea: v.string(), sector: v.string() }),
+  returns: v.object({ summary: v.string(), potentialIdea: v.string(), sector: v.string(), industry: v.string() }),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
@@ -158,7 +172,7 @@ export const analyzeArticle = action({
     if (articleContent.length < 80) throw new Error("Reva could not extract enough article text. Open the original article and try again later.");
     const key = env.GEMINI_API_KEY;
     if (!key) throw new Error("Gemini is not configured for this Reva deployment.");
-    const prompt = `Analyze this public article for a Nigerian venture scouting team. Return only a JSON object with summary (2-4 factual sentences), potentialIdea (one plausible initiative grounded in the text, or an empty string if none), and sector (short label or empty string). Do not invent facts or claim Nigerian fit has been assessed.\n\nTitle: ${article.title}\nSource: ${article.sourceName}\nURL: ${article.url}\nArticle text:\n${articleContent}`;
+    const prompt = `Analyze this public article for a Nigerian venture scouting team. Return only JSON with summary (2-4 factual sentences), potentialIdea (one plausible initiative grounded in the text, or empty string if none), sector (closest canonical sector or Uncategorized), and industry (specific industry grounded in the text, or Uncategorized). Do not invent facts or claim Nigerian fit has been assessed.\n\nTitle: ${article.title}\nSource: ${article.sourceName}\nURL: ${article.url}\nArticle text:\n${articleContent}`;
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
@@ -174,9 +188,10 @@ export const analyzeArticle = action({
     const summary = typeof result.summary === "string" ? result.summary.slice(0, 2500) : "";
     const potentialIdea = typeof result.potentialIdea === "string" ? result.potentialIdea.slice(0, 1000) : "";
     const sector = typeof result.sector === "string" ? result.sector.slice(0, 100) : "";
+    const industry = typeof result.industry === "string" ? result.industry.slice(0, 100) : "Uncategorized";
     if (!summary) throw new Error("Gemini returned no article summary.");
-    await ctx.runMutation(internal.scouting.saveArticleAnalysis, { id: args.id, summary, potentialIdea, sector, content: articleContent });
-    return { summary, potentialIdea, sector };
+    await ctx.runMutation(internal.scouting.saveArticleAnalysis, { id: args.id, summary, potentialIdea, sector, industry, content: articleContent });
+    return { summary, potentialIdea, sector, industry };
   },
 });
 
@@ -198,26 +213,89 @@ export const runPolicyScheduled = internalAction({
   },
 });
 
+export const runCustomScoutSchedule = internalAction({
+  args: { id: v.id("automations") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const automation = await ctx.runQuery(internal.automations.getAutomationForExecution, { id: args.id });
+    if (!automation || !automation.isActive || !automation.actionType) return null;
+    const scoutTypes: ScoutType[] = automation.actionType === "both_scouts"
+      ? ["emerging_tech", "nigeria_policy"]
+      : automation.actionType === "emerging_scout"
+      ? ["emerging_tech"]
+      : ["nigeria_policy"];
+    const results = await Promise.all(scoutTypes.map((type) => executeScout(ctx, type, "scheduled")));
+    const failures = results.filter((result) => result.status !== "completed");
+    await ctx.runMutation(internal.automations.recordScheduledExecution, {
+      id: args.id,
+      succeeded: failures.length === 0,
+      ...(failures.length ? { error: failures.map((result) => result.message).join(" ").slice(0, 1000) } : {}),
+    });
+    return null;
+  },
+});
+
 export const saveArticles = internalMutation({
-  args: { articles: v.array(articleValidator) }, returns: v.number(),
+  args: {
+    runId: v.id("scoutRuns"),
+    scoutType,
+    articles: v.array(articleValidator),
+  },
+  returns: v.number(),
   handler: async (ctx, args) => {
     let inserted = 0;
     for (const article of args.articles) {
       const exists = await ctx.db.query("scrapedItems").withIndex("by_urlHash", (q) => q.eq("urlHash", article.urlHash)).first();
+      let articleId;
       if (exists) {
         if (!exists.content && article.content) await ctx.db.patch(exists._id, { content: article.content });
-        continue;
+        articleId = exists._id;
+      } else {
+        articleId = await ctx.db.insert("scrapedItems", article);
+        inserted++;
       }
-      await ctx.db.insert("scrapedItems", article);
-      inserted++;
+      const sessionExists = await ctx.db.query("scoutArticleSessions")
+        .withIndex("by_runId_and_urlHash", (q) => q.eq("runId", args.runId).eq("urlHash", article.urlHash))
+        .first();
+      if (!sessionExists) {
+        await ctx.db.insert("scoutArticleSessions", {
+          runId: args.runId,
+          articleId,
+          urlHash: article.urlHash,
+          scoutType: args.scoutType,
+          isNewInSession: article.isNewInSession ?? false,
+          sessionDate: article.sessionDate || new Date().toISOString().slice(0, 10),
+          processedAt: Date.now(),
+        });
+      }
     }
     return inserted;
   },
 });
 
+export const saveArticleAnalyses = internalMutation({
+  args: { articles: v.array(v.object({
+    urlHash: v.string(), aiSummary: v.string(), aiSector: v.string(), industry: v.string(), potentialIdea: v.optional(v.string()),
+  })) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const analysis of args.articles) {
+      const article = await ctx.db.query("scrapedItems").withIndex("by_urlHash", (q) => q.eq("urlHash", analysis.urlHash)).first();
+      if (!article) continue;
+      await ctx.db.patch(article._id, {
+        aiSummary: analysis.aiSummary,
+        aiSector: analysis.aiSector,
+        industry: analysis.industry,
+        potentialIdea: analysis.potentialIdea,
+      });
+    }
+    return null;
+  },
+});
+
 export const saveFindings = internalMutation({
   args: { runId: v.id("scoutRuns"), scoutType, findings: v.array(v.object({
-    articleUrl: v.string(), ideaName: v.string(), sector: v.string(), summary: v.string(),
+    articleUrl: v.string(), ideaName: v.string(), sector: v.string(), industry: v.optional(v.string()), summary: v.string(),
   })) },
   returns: v.number(),
   handler: async (ctx, args) => {
@@ -234,6 +312,8 @@ export const saveFindings = internalMutation({
         sourceName: article?.sourceName || new URL(articleUrl).hostname,
         sourceUrl: articleUrl, publishedAt: article?.publishedDate,
         ideaName: finding.ideaName.slice(0, 180), sector: finding.sector.slice(0, 100),
+        industry: finding.industry?.slice(0, 100), isNewInSession: true,
+        sessionDate: new Date().toISOString().slice(0, 10), sessionId: args.runId,
         summary: finding.summary.slice(0, 3000), status: "new", createdAt: Date.now(),
       });
       inserted++;
@@ -299,29 +379,54 @@ async function executeScout(ctx: ActionCtx, type: ScoutType, trigger: RunTrigger
       }
     }
     await ctx.runMutation(internal.scouting.updateSourceHealth, { attempts });
-    const allArticles = articleBatches.flatMap((batch) => batch.articles);
-    const newArticles: number = allArticles.length
-      ? await ctx.runMutation(internal.scouting.saveArticles, { articles: allArticles.slice(0, 500) })
-      : 0;
+    const allArticles = [...new Map(articleBatches.flatMap((batch) => batch.articles).map((article) => [article.urlHash, article])).values()].slice(0, 200);
+    const known = await getKnownArticleHashes(ctx, allArticles);
+    const fresh = allArticles.filter((article) => !known.has(article.urlHash));
+    const sessionDate = new Date().toISOString().slice(0, 10);
+    const articlesToSave = allArticles.map((article) => known.has(article.urlHash)
+      ? article
+      : { ...article, isNewInSession: true, sessionDate, sessionId: runId });
+    let newArticles = 0;
+    for (let offset = 0; offset < articlesToSave.length; offset += 50) {
+      newArticles += await ctx.runMutation(internal.scouting.saveArticles, {
+        runId,
+        scoutType: type,
+        articles: articlesToSave.slice(offset, offset + 50),
+      });
+    }
     let ideasFound = 0;
-    if (newArticles && env.GEMINI_API_KEY) {
-      const known = await getKnownArticleHashes(ctx, allArticles);
-      const fresh = allArticles.filter((article) => known.has(article.urlHash)).slice(0, 80);
-      try {
-        const extracted = await synthesizeIdeas(fresh, type);
-        ideasFound = await ctx.runMutation(internal.scouting.saveFindings, {
-          runId, scoutType: type,
-          findings: extracted.filter((item) => fresh.some((article) => article.url === item.articleUrl)),
-        });
-        if (extracted.length) {
-          const screened: { processed: number; errors: string[] } = await ctx.runAction(internal.screening.processScoutCandidates, {
-            scoutType: type, candidates: extracted.slice(0, 20),
+    if (fresh.length && env.GEMINI_API_KEY) {
+      for (let offset = 0; offset < fresh.length; offset += 20) {
+        const batch = fresh.slice(offset, offset + 20);
+        try {
+          const analyses = await classifyScoutedArticles(batch, type);
+          await ctx.runMutation(internal.scouting.saveArticleAnalyses, {
+            articles: analyses.map((analysis) => ({
+              urlHash: batch.find((article) => article.url === analysis.articleUrl)!.urlHash,
+              aiSummary: analysis.summary,
+              aiSector: analysis.sector,
+              industry: analysis.industry,
+              ...(analysis.ideaName ? { potentialIdea: analysis.ideaName } : {}),
+            })),
           });
-          errors.push(...screened.errors);
+          const candidates = analyses.filter((analysis) => analysis.ideaName && analysis.opportunitySummary).map((analysis) => ({
+            articleUrl: analysis.articleUrl,
+            ideaName: analysis.ideaName,
+            sector: analysis.sector,
+            industry: analysis.industry,
+            summary: analysis.opportunitySummary,
+          }));
+          ideasFound += await ctx.runMutation(internal.scouting.saveFindings, { runId, scoutType: type, findings: candidates });
+          if (candidates.length) {
+            const screened: { processed: number; errors: string[] } = await ctx.runAction(internal.screening.processScoutCandidates, {
+              scoutType: type, candidates,
+            });
+            errors.push(...screened.errors);
+          }
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Unknown Gemini error";
+          errors.push(`Article batch beginning at ${offset + 1} was saved but not fully classified or screened: ${reason}`);
         }
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : "Unknown Gemini error";
-        errors.push(`Articles were saved, but Gemini idea synthesis failed: ${reason}`);
       }
     } else if (!env.GEMINI_API_KEY && newArticles) {
       errors.push("Articles were saved; configure Gemini to turn them into venture idea findings.");
@@ -511,29 +616,47 @@ function getGeminiText(payload: unknown): string {
   return output.content.flatMap((part: unknown) => part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part && typeof part.text === "string" ? [part.text] : []).join("");
 }
 
-async function synthesizeIdeas(articles: ScoutArticle[], type: ScoutType) {
+type ScoutAnalysis = {
+  articleUrl: string;
+  summary: string;
+  sector: string;
+  industry: string;
+  ideaName: string;
+  opportunitySummary: string;
+};
+
+async function classifyScoutedArticles(articles: ScoutArticle[], type: ScoutType): Promise<ScoutAnalysis[]> {
   const key = env.GEMINI_API_KEY;
   if (!key || !articles.length) return [];
-  const prompt = `Review the public ${type === "emerging_tech" ? "technology and startup" : "Nigerian regulatory and policy"} articles below. Derive only plausible venture opportunity concepts grounded in the article text. Skip articles that do not support a venture idea. Never invent policy details, market statistics, companies, or facts. Return JSON array items with articleUrl, ideaName, sector, summary. Keep each summary under 100 words.\n\n${articles.map((article, index) => `ARTICLE ${index + 1}\nTitle: ${article.title}\nURL: ${article.url}\nText: ${article.content}`).join("\n\n")}`;
+  const prompt = `Classify every public ${type === "emerging_tech" ? "technology and startup" : "Nigerian regulatory and policy"} article below. Return exactly one JSON array item for each input URL, including articles with no venture opportunity. Each item must contain articleUrl, summary (factual, 2-4 sentences), sector (one of Fintech & Financial Inclusion, AgriTech & Supply Chain, GovTech & Regulatory Tech, CleanTech & Energy Software, HealthTech & Life Sciences, Commerce, Retail & Logistics, InsurTech & Risk Analytics, Mobility & Smart Transit, Enterprise & Emerging Tech, or Uncategorized), industry (specific label grounded in the text, or Uncategorized), ideaName (empty string if no clear opportunity), and opportunitySummary (empty string if no clear opportunity). Never invent policy details, market statistics, companies, or facts.\n\n${articles.map((article, index) => `ARTICLE ${index + 1}\nTitle: ${article.title}\nURL: ${article.url}\nText: ${article.content}`).join("\n\n")}`;
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
       response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 5000 } }),
   });
-  if (!response.ok) throw new Error(`Gemini scout synthesis returned ${response.status}`);
-  const payload = await response.json() as any;
-  const text = payload.steps?.find((step: any) => step.type === "model_output")?.content?.filter((part: any) => part.type === "text")?.map((part: any) => part.text || "").join("");
-  if (!text) return [];
+  if (!response.ok) throw new Error(`Gemini scout classification returned ${response.status}`);
+  const payload: unknown = await response.json();
+  const text = getGeminiText(payload);
+  if (!text) throw new Error("Gemini returned no article classifications.");
   const result = parseJson(text);
-  if (!Array.isArray(result)) return [];
-  return result.flatMap((item: any) => {
-    if (!item || typeof item.articleUrl !== "string" || typeof item.ideaName !== "string" || typeof item.summary !== "string") return [];
+  if (!Array.isArray(result)) throw new Error("Gemini returned an invalid article classification list.");
+  const analyses = result.flatMap((item: any) => {
+    if (!item || typeof item.articleUrl !== "string" || typeof item.summary !== "string") return [];
     try {
       const articleUrl = new URL(item.articleUrl).toString();
       if (!articles.some((article) => article.url === articleUrl)) return [];
-      return [{ articleUrl, ideaName: item.ideaName.slice(0, 180), sector: typeof item.sector === "string" ? item.sector.slice(0, 100) : "Unspecified", summary: item.summary.slice(0, 3000) }];
+      return [{
+        articleUrl,
+        summary: item.summary.slice(0, 3000),
+        sector: typeof item.sector === "string" && item.sector.trim() ? item.sector.slice(0, 100) : "Uncategorized",
+        industry: typeof item.industry === "string" && item.industry.trim() ? item.industry.slice(0, 100) : "Uncategorized",
+        ideaName: typeof item.ideaName === "string" ? item.ideaName.slice(0, 180).trim() : "",
+        opportunitySummary: typeof item.opportunitySummary === "string" ? item.opportunitySummary.slice(0, 3000).trim() : "",
+      }];
     } catch { return []; }
   });
+  if (analyses.length !== articles.length) throw new Error("Gemini did not return a classification for every new article.");
+  return analyses;
 }
 
 async function getKnownArticleHashes(ctx: ActionCtx, articles: ScoutArticle[]) {
@@ -546,12 +669,7 @@ async function getKnownArticleHashes(ctx: ActionCtx, articles: ScoutArticle[]) {
 }
 
 export const getArticleByHash = internalQuery({
-  args: { urlHash: v.string() }, returns: v.union(v.null(), v.object({
-    _id: v.id("scrapedItems"), _creationTime: v.number(), urlHash: v.string(), url: v.string(), title: v.string(),
-    sourceName: v.string(), sourceType: v.string(), contentHash: v.string(), content: v.optional(v.string()),
-    aiSummary: v.optional(v.string()), potentialIdea: v.optional(v.string()), aiSector: v.optional(v.string()),
-    processedAt: v.number(), status: v.string(), publishedDate: v.optional(v.string()),
-  })),
+  args: { urlHash: v.string() }, returns: v.union(v.null(), articleDoc),
   handler: async (ctx, args) => await ctx.db.query("scrapedItems").withIndex("by_urlHash", (q) => q.eq("urlHash", args.urlHash)).first(),
 });
 
@@ -561,10 +679,10 @@ export const getArticleById = internalQuery({
 });
 
 export const saveArticleAnalysis = internalMutation({
-  args: { id: v.id("scrapedItems"), summary: v.string(), potentialIdea: v.string(), sector: v.string(), content: v.optional(v.string()) }, returns: v.null(),
+  args: { id: v.id("scrapedItems"), summary: v.string(), potentialIdea: v.string(), sector: v.string(), industry: v.string(), content: v.optional(v.string()) }, returns: v.null(),
   handler: async (ctx, args) => {
-    const { id, summary, potentialIdea, sector } = args;
-    await ctx.db.patch(id, { aiSummary: summary, potentialIdea, aiSector: sector });
+    const { id, summary, potentialIdea, sector, industry } = args;
+    await ctx.db.patch(id, { aiSummary: summary, potentialIdea, aiSector: sector, industry });
     return null;
   },
 });

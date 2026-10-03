@@ -84,7 +84,7 @@ export function extractBriefLocally(rawText = "") {
   if (!text) {
     return {
       ideaName: "Unspecified Initiative",
-      sector: "Fintech & Financial Inclusion",
+      sector: "Uncategorized",
       description: "",
       problem: "",
       solution: "",
@@ -119,7 +119,7 @@ export function extractBriefLocally(rawText = "") {
   }
 
   // 2. Detect Sector
-  let sector = "Fintech & Financial Inclusion";
+  let sector = "Uncategorized";
   const sectorKeywords = [
     { name: "AgriTech & Supply Chain", keys: ["agri", "farm", "crop", "grain", "fertilizer", "livestock", "harvest", "produce"] },
     { name: "CleanTech & Energy Software", keys: ["energy", "solar", "mini-grid", "power", "grid", "electricity", "clean", "carbon", "renewable"] },

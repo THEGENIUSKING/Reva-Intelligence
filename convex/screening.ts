@@ -107,7 +107,7 @@ Brief: ${brief || "See attached file."}`;
 
     let emailStatus = "not_eligible";
     const threshold = Number(process.env.DIT_ALERT_THRESHOLD_SCORE || "66");
-    const recipient = process.env.DIT_NOTIFICATION_EMAIL || "olanrewajut935@gmail.com";
+    const recipient = process.env.DIT_NOTIFICATION_EMAIL;
     if (score >= threshold) {
       if (!recipient || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
         emailStatus = "not_configured";
@@ -139,55 +139,50 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
 }
 
-const scoutCandidate = v.object({ articleUrl: v.string(), ideaName: v.string(), sector: v.string(), summary: v.string() });
+const scoutCandidate = v.object({ articleUrl: v.string(), ideaName: v.string(), sector: v.string(), industry: v.optional(v.string()), summary: v.string() });
 const viabilityDimensions = ["Demand and affordability", "Regulation", "Infrastructure and payments", "Competition", "Unit economics and FX", "Distribution and trust"];
-const vantaCriteria = [["strategic_alignment", 20], ["customer_problem", 20], ["solution_fit", 15], ["market_opportunity", 15], ["differentiation", 10], ["sustainable_advantage", 10], ["feasibility", 10]] as const;
+const revaCriteria = [["strategic_alignment", 20], ["customer_problem", 20], ["solution_fit", 15], ["market_opportunity", 15], ["differentiation", 10], ["sustainable_advantage", 10], ["feasibility", 10]] as const;
 
 export const processScoutCandidates = internalAction({
   args: { scoutType: v.union(v.literal("emerging_tech"), v.literal("nigeria_policy")), candidates: v.array(scoutCandidate) },
   returns: v.object({ processed: v.number(), errors: v.array(v.string()) }),
   handler: async (ctx, { scoutType, candidates }) => {
     const errors: string[] = [];
+    let processed = 0;
     const key = env.GEMINI_API_KEY, apiKey = env.VANTA_API_KEY, apiBase = env.VANTA_API_BASE_URL;
     if (!key) return { processed: 0, errors: ["Gemini is not configured; candidates were not screened."] };
-    if (!apiKey || !apiBase) return { processed: 0, errors: ["Vanta read access is not configured; screening stopped before grading or email so duplicates cannot pass unchecked."] };
-    let portfolio: Array<Record<string, unknown>>;
-    try {
-      const url = new URL("/api/v1/portfolio?limit=1000", apiBase);
-      if (url.protocol !== "https:") throw new Error("Vanta API must use HTTPS.");
-      const response = await fetch(url, { headers: { authorization: "Bearer " + apiKey, accept: "application/json" }, signal: AbortSignal.timeout(20000) });
-      if (!response.ok) throw new Error("Vanta read API returned HTTP " + response.status + ".");
-      const payload: any = await response.json();
-      if (!Array.isArray(payload?.items)) throw new Error("Vanta returned an unexpected portfolio response.");
-      portfolio = payload.items.filter((item: unknown): item is Record<string, unknown> => Boolean(item && typeof item === "object"));
-    } catch (error) {
-      return { processed: 0, errors: [(error instanceof Error ? error.message : "Could not read Vanta portfolio.") + " Candidates were saved, but screening stopped to avoid approving duplicates."] };
+    let portfolio: Array<Record<string, unknown>> = [];
+    let portfolioAvailable = false;
+    if (apiKey && apiBase) {
+      try {
+        const url = new URL("/api/v1/portfolio?limit=1000", apiBase);
+        if (url.protocol !== "https:") throw new Error("Vanta API must use HTTPS.");
+        const response = await fetch(url, { headers: { authorization: "Bearer " + apiKey, accept: "application/json" }, signal: AbortSignal.timeout(20000) });
+        if (!response.ok) throw new Error("Vanta read API returned HTTP " + response.status + ".");
+        const payload: unknown = await response.json();
+        if (!payload || typeof payload !== "object" || !("items" in payload) || !Array.isArray(payload.items)) throw new Error("Vanta returned an unexpected portfolio response.");
+        portfolio = payload.items.filter((item: unknown): item is Record<string, unknown> => Boolean(item && typeof item === "object"));
+        portfolioAvailable = true;
+      } catch (error) {
+        errors.push("Reva screening continued, but Vanta duplicate checking was unavailable: " + (error instanceof Error ? error.message : "Could not read Vanta portfolio."));
+      }
+    } else {
+      errors.push("Reva screening continued; Vanta duplicate checking is not configured.");
     }
 
     const ownerId = "reva-scout";
     for (const candidate of candidates.slice(0, 20)) {
       try {
-        const match = portfolioMatch(candidate, portfolio);
-        if (match?.exact) {
-          await ctx.runMutation(internal.initiatives.saveEvaluatedInitiative, {
-            ownerId, name: candidate.ideaName, sector: candidate.sector, description: candidate.summary,
-            problem: "See linked source and assessment record.", solution: candidate.summary, targetCustomer: "Not specified",
-            sourceType: scoutType === "emerging_tech" ? "emerging_tech_scout" : "nigeria_policy_scout", sourceUrl: candidate.articleUrl, sourceMarket: "Nigeria",
-            dedupeVerdict: "EXACT_DUPLICATE", dedupeSimilarity: match.score, matchingVantaId: match.id, matchingVantaName: match.name,
-            viabilityRating: "Low", viabilityScore: 0, viabilityVerdict: "Parked because an existing Vanta initiative has the same name.",
-            viabilityDimensions: [], vantaScore: 0, vantaGrade: "D", vantaResult: "duplicate", overallComments: "Exact or normalized-name duplicate of an existing Vanta portfolio record.",
-            keyStrengths: [], keyRisks: ["Existing Vanta initiative matches this candidate."], criteriaScores: {}, draftSubmission: {},
-            status: "dropped_exact_duplicate", emailDispatched: false, vantaSubmissionStatus: "not_needed",
-          });
-          continue;
-        }
-
+        const match = portfolioAvailable ? portfolioMatch(candidate, portfolio) : null;
         const assessment = await assessCandidate(key, candidate, scoutType);
         const rawCriteria = assessment.criteriaScores && typeof assessment.criteriaScores === "object" ? assessment.criteriaScores as Record<string, any> : {};
         const criteriaScores: Record<string, { score: number; maxScore: number; rationale: string }> = {};
-        for (const [id, maxScore] of vantaCriteria) {
+        for (const [id, maxScore] of revaCriteria) {
           const item = rawCriteria[id] && typeof rawCriteria[id] === "object" ? rawCriteria[id] : {};
-          criteriaScores[id] = { score: Math.max(0, Math.min(maxScore, Number(item.score) || 0)), maxScore, rationale: String(item.rationale || "Insufficient evidence.").slice(0, 600) };
+          const criterionScore = Number(item.score);
+          const rationale = typeof item.rationale === "string" ? item.rationale.trim() : "";
+          if (!Number.isFinite(criterionScore) || !rationale) throw new Error(`Gemini returned an incomplete ${id} score.`);
+          criteriaScores[id] = { score: Math.max(0, Math.min(maxScore, criterionScore)), maxScore, rationale: rationale.slice(0, 600) };
         }
         const score = Math.round(Object.values(criteriaScores).reduce((sum, item) => sum + item.score, 0));
         const grade = score >= 86 ? "A*" : score >= 76 ? "A" : score >= 66 ? "B" : score >= 57 ? "C" : "D";
@@ -200,30 +195,13 @@ export const processScoutCandidates = internalAction({
         for (const item of dimensions) counts[item.rating as keyof typeof counts]++;
         const viabilityRating = counts.High >= 3 ? "High" : counts.High + counts.Medium >= 4 ? "Medium" : "Low";
         const viabilityScore = Math.round(dimensions.reduce((sum, item) => sum + (item.rating === "High" ? 100 : item.rating === "Medium" ? 60 : 20), 0) / dimensions.length);
-        const passed = viabilityRating !== "Low" && score >= 66 && !match;
-        let submissionStatus = match ? "near_similar_review" : "not_eligible";
-        let submissionId: string | undefined;
-        if (passed && !match) {
-          try {
-            const response = await fetch(new URL("/api/v1/ideas", apiBase), {
-              method: "POST", headers: { authorization: "Bearer " + apiKey, "content-type": "application/json", accept: "application/json" },
-              body: JSON.stringify({ name: candidate.ideaName, description: candidate.summary, problem: String(assessment.problem || "Identified from linked public source."), solution: String(assessment.solution || candidate.summary), sector: candidate.sector, targetCustomer: String(assessment.targetCustomer || "Not specified") }),
-              signal: AbortSignal.timeout(20000),
-            });
-            const payload: any = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(response.status === 403 ? "Vanta rejected write access; the API key needs write scope." : "Vanta Idea Bank returned HTTP " + response.status + ".");
-            submissionStatus = payload.duplicate ? "duplicate_in_vanta" : "submitted";
-            submissionId = typeof payload.id === "string" ? payload.id : undefined;
-          } catch (error) {
-            submissionStatus = "failed";
-            errors.push(candidate.ideaName + ": " + (error instanceof Error ? error.message : "Vanta write-back failed."));
-          }
-        }
+        const passed = viabilityRating !== "Low" && score >= 66;
+        const duplicateStatus = !portfolioAvailable ? "not_checked" : match ? (match.exact ? "exact_match" : "similarity_match") : "checked_no_match";
         const record = {
-          ownerId, name: candidate.ideaName, sector: candidate.sector, description: candidate.summary,
+          ownerId, name: candidate.ideaName, sector: candidate.sector, industry: candidate.industry, description: candidate.summary,
           problem: String(assessment.problem || "Not specified"), solution: String(assessment.solution || candidate.summary), targetCustomer: String(assessment.targetCustomer || "Not specified"),
           goToMarket: String(assessment.goToMarket || ""), sourceType: scoutType === "emerging_tech" ? "emerging_tech_scout" : "nigeria_policy_scout", sourceUrl: candidate.articleUrl, sourceMarket: "Nigeria",
-          dedupeVerdict: match ? "NEAR_SIMILAR" : "NEW", dedupeSimilarity: match?.score || 0, matchingVantaId: match?.id, matchingVantaName: match?.name,
+          dedupeVerdict: !portfolioAvailable ? "NOT_CHECKED" : match ? (match.exact ? "EXACT_DUPLICATE" : "NEAR_SIMILAR") : "NEW", dedupeSimilarity: match?.score || 0, matchingVantaId: match?.id, matchingVantaName: match?.name,
           dedupeDifferentiator: match ? String(assessment.differentiator || "Requires human review against the similar Vanta initiative.") : undefined,
           viabilityRating, viabilityScore, viabilityVerdict: String(assessment.viabilityVerdict || "Preliminary Nigeria viability assessment based on public sources."), viabilityDimensions: dimensions,
           vantaScore: score, vantaGrade: grade, vantaResult: passed ? "passed" : "declined", overallComments: String(assessment.recommendation || "Preliminary AI assessment; review source evidence before action."),
@@ -231,12 +209,13 @@ export const processScoutCandidates = internalAction({
           keyRisks: Array.isArray(assessment.risks) ? assessment.risks.map(String).slice(0, 8) : [],
           criteriaScores, draftSubmission: { executiveSummary: candidate.summary, goToMarket: String(assessment.goToMarket || ""), problem: String(assessment.problem || ""), solution: String(assessment.solution || "") },
           status: passed ? "passed" : viabilityRating === "Low" ? "parked_below_viability" : "parked_below_pass",
-          emailDispatched: false, vantaSubmissionStatus: submissionStatus, vantaSubmissionId: submissionId,
+          emailDispatched: false, vantaSubmissionStatus: duplicateStatus,
         };
         const id = await ctx.runMutation(internal.initiatives.saveEvaluatedInitiative, record);
+        processed++;
         if (passed) {
-          const recipient = env.DIT_NOTIFICATION_EMAIL || "olanrewajut935@gmail.com";
-          if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) errors.push(candidate.ideaName + ": passed, but Resend is not configured for DIT email.");
+          const recipient = env.DIT_NOTIFICATION_EMAIL;
+          if (!recipient || !env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) errors.push(candidate.ideaName + ": passed, but DIT email is not fully configured.");
           else {
             try {
               const dimensionHtml = dimensions.map((item) => "<li><strong>" + escapeHtml(item.dimension) + " — " + item.rating + ":</strong> " + escapeHtml(item.rationale) + "</li>").join("");
@@ -246,8 +225,8 @@ export const processScoutCandidates = internalAction({
               await ctx.runMutation(internal.emailLogs.queueScreeningAlert, {
                 ownerId, initiativeId: id, initiativeName: candidate.ideaName, recipient,
                 subject: "Reva scout passed: " + grade + " · " + candidate.ideaName, vantaGrade: grade, vantaScore: score,
-                html: "<h2>" + escapeHtml(candidate.ideaName) + "</h2><p>Sector: " + escapeHtml(candidate.sector) + "</p><p>Nigeria viability: " + escapeHtml(viabilityRating) + " (" + viabilityScore + "/100)</p><ul>" + dimensionHtml + "</ul><p>Vanta criteria grade: " + grade + " (" + score + "/100)</p><ul>" + criteriaHtml + "</ul><p>" + escapeHtml(record.overallComments) + "</p><p><strong>Strengths:</strong> " + escapeHtml(record.keyStrengths.join("; ") || "None identified") + "</p><p><strong>Risks:</strong> " + escapeHtml(record.keyRisks.join("; ") || "None identified") + "</p><p>Vanta Idea Bank write-back: " + escapeHtml(submissionStatus) + ". Source: <a href=\"" + escapeHtml(candidate.articleUrl) + "\">" + escapeHtml(candidate.articleUrl) + "</a></p><p>AI assessment for DIT review; not a final investment decision.</p>",
-                text: candidate.ideaName + "\nSector: " + candidate.sector + "\nNigeria viability: " + viabilityRating + " (" + viabilityScore + "/100)\n" + dimensionText + "\nVanta criteria grade: " + grade + " (" + score + "/100)\n" + criteriaText + "\n" + record.overallComments + "\nStrengths: " + record.keyStrengths.join("; ") + "\nRisks: " + record.keyRisks.join("; ") + "\nVanta Idea Bank: " + submissionStatus + "\nSource: " + candidate.articleUrl + "\nAI assessment for DIT review; not a final investment decision.",
+                html: "<h2>" + escapeHtml(candidate.ideaName) + "</h2><p>Sector: " + escapeHtml(candidate.sector) + "</p><p>Nigeria viability: " + escapeHtml(viabilityRating) + " (" + viabilityScore + "/100)</p><ul>" + dimensionHtml + "</ul><p>Reva 7-criteria grade: " + grade + " (" + score + "/100)</p><ul>" + criteriaHtml + "</ul><p>" + escapeHtml(record.overallComments) + "</p><p><strong>Strengths:</strong> " + escapeHtml(record.keyStrengths.join("; ") || "None identified") + "</p><p><strong>Risks:</strong> " + escapeHtml(record.keyRisks.join("; ") || "None identified") + "</p><p>Vanta duplicate status: " + escapeHtml(duplicateStatus) + ". Source: <a href=\"" + escapeHtml(candidate.articleUrl) + "\">" + escapeHtml(candidate.articleUrl) + "</a></p><p>AI assessment for DIT review; not a final investment decision.</p>",
+                text: candidate.ideaName + "\nSector: " + candidate.sector + "\nNigeria viability: " + viabilityRating + " (" + viabilityScore + "/100)\n" + dimensionText + "\nReva 7-criteria grade: " + grade + " (" + score + "/100)\n" + criteriaText + "\n" + record.overallComments + "\nStrengths: " + record.keyStrengths.join("; ") + "\nRisks: " + record.keyRisks.join("; ") + "\nVanta duplicate status: " + duplicateStatus + "\nSource: " + candidate.articleUrl + "\nAI assessment for DIT review; not a final investment decision.",
               });
             } catch (error) { errors.push(candidate.ideaName + ": passed, but DIT email queue failed: " + (error instanceof Error ? error.message : "unknown Resend error")); }
           }
@@ -257,13 +236,13 @@ export const processScoutCandidates = internalAction({
       }
     }
     if (candidates.length > 20) errors.push("Only 20 of " + candidates.length + " candidates were screened; remaining candidates need a later run.");
-    return { processed: Math.min(candidates.length, 20), errors };
+    return { processed, errors };
   },
 });
 
 async function assessCandidate(key: string, candidate: { ideaName: string; sector: string; summary: string; articleUrl: string }, scoutType: string) {
-  const criteria = vantaCriteria.map(([id, max]) => id + "=" + max).join(", ");
-  const prompt = "Assess this public-source idea for Nigerian market viability and Trium Vanta criteria. Use Google Search for current Nigeria evidence. Do not invent facts; mark weak evidence Low. Viability dimension labels exactly: " + viabilityDimensions.join(", ") + ". Rate High, Medium, or Low. Vanta criterion keys and maximum points: " + criteria + ". Return JSON only: {\"problem\":\"\", \"solution\":\"\", \"targetCustomer\":\"\", \"goToMarket\":\"\", \"viabilityVerdict\":\"\", \"dimensions\":[{\"dimension\":\"\", \"rating\":\"High|Medium|Low\", \"rationale\":\"\"}], \"criteriaScores\":{\"criterion\":{\"score\":0,\"rationale\":\"\"}}, \"strengths\":[], \"risks\":[], \"recommendation\":\"\", \"differentiator\":\"\"}. This is preliminary AI judgment, not final Vanta approval.\\nScout: " + scoutType + "\\nName: " + candidate.ideaName + "\\nSector: " + candidate.sector + "\\nSummary: " + candidate.summary + "\\nSource: " + candidate.articleUrl;
+  const criteria = revaCriteria.map(([id, max]) => id + "=" + max).join(", ");
+  const prompt = "Assess this public-source idea for Nigerian market viability and Reva's seven investment criteria. Use Google Search for current Nigeria evidence. Do not invent facts; mark weak evidence Low. Viability dimension labels exactly: " + viabilityDimensions.join(", ") + ". Rate High, Medium, or Low. Reva criterion keys and maximum points: " + criteria + ". Return JSON only: {\"problem\":\"\", \"solution\":\"\", \"targetCustomer\":\"\", \"goToMarket\":\"\", \"viabilityVerdict\":\"\", \"dimensions\":[{\"dimension\":\"\", \"rating\":\"High|Medium|Low\", \"rationale\":\"\"}], \"criteriaScores\":{\"criterion\":{\"score\":0,\"rationale\":\"Evidence-based rationale\"}}, \"strengths\":[], \"risks\":[], \"recommendation\":\"\", \"differentiator\":\"\"}. This is preliminary AI judgment, not a final investment decision.\\nScout: " + scoutType + "\\nName: " + candidate.ideaName + "\\nSector: " + candidate.sector + "\\nSummary: " + candidate.summary + "\\nSource: " + candidate.articleUrl;
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt, tools: [{ type: "google_search" }], response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 4500 } }),
