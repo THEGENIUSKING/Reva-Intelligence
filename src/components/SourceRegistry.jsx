@@ -8,9 +8,22 @@ export const SOURCE_CATEGORIES = [
   "Global Fallback"
 ];
 
-function normalizeSourceCategory(value = "") {
-  if (value.startsWith("Emerging Market")) return "Emerging Market";
-  return value;
+function normalizeSourceCategory(value = "", tier = "") {
+  const category = value.trim().toLowerCase();
+  const sourceTier = tier.trim().toLowerCase();
+  if (category.includes("regulat") || category.includes("policy") || category.includes("legal") || category.includes("nigeria") || sourceTier.startsWith("nigeria")) {
+    return "Nigerian Regulatory, Legal and Policy Environment";
+  }
+  if (category.includes("global") || sourceTier === "tier_b_global") return "Global Fallback";
+  return "Emerging Market";
+}
+
+function getSourceIndustry(source) {
+  if (source.industry?.trim()) return source.industry.trim();
+  const legacyCategory = source.category?.trim() || "";
+  const normalized = legacyCategory.toLowerCase();
+  if (!legacyCategory || SOURCE_CATEGORIES.includes(legacyCategory) || normalized.startsWith("emerging market") || normalized.includes("regulat") || normalized.includes("policy") || normalized.includes("legal") || normalized.includes("nigeria") || normalized.includes("global")) return "";
+  return legacyCategory;
 }
 
 import { useQuery, useMutation } from "convex/react";
@@ -50,14 +63,10 @@ export function SourceRegistry() {
     return ["All Sectors", ...Array.from(s).filter(Boolean).sort()];
   }, [sources]);
 
-  const availableCategories = useMemo(() => {
-    const c = new Set();
-    sources.forEach(x => { if (x.category) c.add(normalizeSourceCategory(x.category)); });
-    return Array.from(c).filter(Boolean).sort();
-  }, [sources]);
+  const availableCategories = SOURCE_CATEGORIES;
 
   const availableIndustries = useMemo(() => {
-    const values = new Set(sources.map((source) => source.industry).filter(Boolean));
+    const values = new Set(sources.map(getSourceIndustry).filter(Boolean));
     return ["All Industries", ...Array.from(values).sort()];
   }, [sources]);
 
@@ -71,9 +80,9 @@ export function SourceRegistry() {
       all: 0,
     };
     return sources.filter((s) => {
-      if (categoryFilter !== "all" && normalizeSourceCategory(s.category) !== categoryFilter) return false;
+      if (categoryFilter !== "all" && normalizeSourceCategory(s.category, s.tier) !== categoryFilter) return false;
       if (sectorFilter !== "All Sectors" && normalizeSector(s.sector) !== sectorFilter) return false;
-      if (industryFilter !== "All Industries" && s.industry !== industryFilter) return false;
+      if (industryFilter !== "All Industries" && getSourceIndustry(s) !== industryFilter) return false;
       const addedAt = s.dateAdded || s._creationTime || 0;
       if (thresholds[dateFilter] && addedAt < thresholds[dateFilter]) return false;
       if (searchQuery.trim()) {
@@ -284,7 +293,7 @@ export function SourceRegistry() {
           </button>
 
           {availableCategories.map((cat) => {
-            const count = sources.filter((s) => normalizeSourceCategory(s.category) === cat).length;
+            const count = sources.filter((s) => normalizeSourceCategory(s.category, s.tier) === cat).length;
             return (
               <button
                 key={cat}
@@ -380,14 +389,14 @@ export function SourceRegistry() {
                             ? "bg-purple-500/10 text-purple-800"
                             : "bg-blue-500/10 text-blue-800"
                         }`}>
-                          {normalizeSourceCategory(src.category)}
+                          {normalizeSourceCategory(src.category, src.tier)}
                         </span>
                         <div className="text-[10px] text-secondary mt-0.5">{src.region || "Global"}</div>
                       </td>
 
                       <td className="p-2.5">
                         <span className="font-medium text-on-surface">{src.sector ? normalizeSector(src.sector) : "Not specified"}</span>
-                        {src.industry && <div className="text-[11px] text-secondary">{src.industry}</div>}
+                        {getSourceIndustry(src) && <div className="text-[11px] text-secondary">{getSourceIndustry(src)}</div>}
                       </td>
                       <td className="p-2.5 text-secondary">{src.dateAdded || src._creationTime ? new Date(src.dateAdded || src._creationTime).toLocaleDateString() : "Unknown"}</td>
 

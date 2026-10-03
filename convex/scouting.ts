@@ -1,5 +1,6 @@
 import { action, internalAction, internalMutation, internalQuery, mutation, query, env } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -12,6 +13,7 @@ const runStatus = v.union(v.literal("running"), v.literal("completed"), v.litera
 const sourceDoc = v.object({
   _id: v.id("sourceRegistry"), _creationTime: v.number(), name: v.string(), url: v.string(),
   feedUrl: v.optional(v.string()), region: v.string(), tier: v.string(), category: v.string(),
+  sector: v.optional(v.string()), industry: v.optional(v.string()), dateAdded: v.optional(v.number()),
   isActive: v.boolean(), lastScrapedAt: v.optional(v.number()), failureCount: v.number(),
   signOffRevaAdmin: v.boolean(), signOffVantaAdmin: v.boolean(), approvedAt: v.optional(v.number()),
 });
@@ -35,6 +37,13 @@ const articleValidator = v.object({
   processedAt: v.number(), status: v.string(), publishedDate: v.optional(v.string()),
 });
 const articleDoc = v.object({ _id: v.id("scrapedItems"), _creationTime: v.number(), ...articleValidator.fields });
+const articleArchiveDoc = v.object({
+  _id: v.id("scrapedItems"), _creationTime: v.number(), urlHash: v.string(), url: v.string(), title: v.string(),
+  sourceName: v.string(), sourceType: v.string(), contentHash: v.string(), aiSummary: v.optional(v.string()),
+  potentialIdea: v.optional(v.string()), aiSector: v.optional(v.string()), industry: v.optional(v.string()),
+  isNewInSession: v.boolean(), sessionDate: v.string(), sessionId: v.string(),
+  processedAt: v.number(), status: v.string(), publishedDate: v.optional(v.string()),
+});
 
 export const activeSources = internalQuery({
   args: { scoutType },
@@ -49,6 +58,79 @@ export const activeSources = internalQuery({
     const tierB = active.filter((source) => source.tier === "tier_b_global");
     const usingGlobalFallback = tierA.length < 30;
     return { sources: (usingGlobalFallback ? [...tierA, ...tierB] : tierA).slice(0, 50), usingGlobalFallback };
+  },
+});
+
+export const benchmarkSources = internalQuery({
+  args: {},
+  returns: v.array(sourceDoc),
+  handler: async (ctx) => await ctx.db.query("sourceRegistry")
+    .withIndex("by_isActive", (q) => q.eq("isActive", true))
+    .take(500),
+});
+
+export const collectBenchmarkArticles = internalAction({
+  args: {},
+  returns: v.object({
+    sourcesAttempted: v.number(),
+    sourcesSucceeded: v.number(),
+    failedSources: v.array(v.string()),
+    articles: v.array(v.object({
+      title: v.string(), url: v.string(), sourceName: v.string(), sourceRegion: v.string(),
+      sourceCategory: v.string(), content: v.string(), publishedDate: v.optional(v.string()),
+    })),
+  }),
+  handler: async (ctx) => {
+    const sources: Doc<"sourceRegistry">[] = await ctx.runQuery(internal.scouting.benchmarkSources, {});
+    if (!sources.length) throw new Error("Benchmark research requires active sources in the Source Registry.");
+    const articles: Array<{
+      title: string; url: string; sourceName: string; sourceRegion: string; sourceCategory: string;
+      content: string; publishedDate?: string;
+    }> = [];
+    const failedSources: string[] = [];
+    let sourcesSucceeded = 0;
+    for (let offset = 0; offset < sources.length; offset += 5) {
+      const batch = sources.slice(offset, offset + 5);
+      const results = await Promise.all(batch.map(async (source) => {
+        const type: ScoutType = source.tier.startsWith("nigeria") ? "nigeria_policy" : "emerging_tech";
+        try {
+          return { source, items: await scrapeSource(source, type) };
+        } catch (error) {
+          return { source, error: error instanceof Error ? error.message : "Source crawl failed." };
+        }
+      }));
+      for (const result of results) {
+        if ("error" in result) {
+          failedSources.push(`${result.source.name}: ${result.error}`);
+          continue;
+        }
+        if (!result.items.length) {
+          failedSources.push(`${result.source.name}: no article records could be extracted.`);
+          continue;
+        }
+        sourcesSucceeded++;
+        for (const item of result.items.slice(0, 3)) {
+          articles.push({
+            title: item.title,
+            url: item.url,
+            sourceName: item.sourceName,
+            sourceRegion: result.source.region,
+            sourceCategory: result.source.category,
+            content: item.content.slice(0, 1200),
+            ...(item.publishedDate ? { publishedDate: item.publishedDate } : {}),
+          });
+        }
+      }
+    }
+    if (!sourcesSucceeded || !articles.length) {
+      throw new Error(`Could not crawl any active registry sources (${failedSources.length} failed). Check source URLs and feeds.`);
+    }
+    return {
+      sourcesAttempted: sources.length,
+      sourcesSucceeded,
+      failedSources: failedSources.slice(0, 50),
+      articles: articles.slice(0, 180),
+    };
   },
 });
 
@@ -90,6 +172,44 @@ export const listRecentArticles = query({
       };
     }));
     return rows.filter((row): row is NonNullable<typeof row> => row !== null);
+  },
+});
+
+export const listRecentArticlesPage = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(articleArchiveDoc),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const page = await ctx.db.query("scoutArticleSessions")
+      .withIndex("by_processedAt")
+      .order("desc")
+      .paginate(args.paginationOpts);
+    const rows = await Promise.all(page.page.map(async (session) => {
+      const article = await ctx.db.get(session.articleId);
+      if (!article) return null;
+      return {
+        _id: article._id,
+        _creationTime: article._creationTime,
+        urlHash: article.urlHash,
+        url: article.url,
+        title: article.title,
+        sourceName: article.sourceName,
+        sourceType: article.sourceType,
+        contentHash: article.contentHash,
+        aiSummary: article.aiSummary,
+        potentialIdea: article.potentialIdea,
+        aiSector: article.aiSector,
+        industry: article.industry,
+        isNewInSession: session.isNewInSession,
+        sessionDate: session.sessionDate,
+        sessionId: String(session.runId),
+        processedAt: session.processedAt,
+        status: article.status,
+        publishedDate: article.publishedDate,
+      };
+    }));
+    return { ...page, page: rows.filter((row): row is NonNullable<typeof row> => row !== null) };
   },
 });
 

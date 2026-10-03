@@ -11,10 +11,17 @@ function safeJson(text: string) {
   return JSON.parse(clean) as Record<string, any>;
 }
 
-function isGroundedUrl(value: unknown, groundedHosts: Set<string>) {
+function getGeminiText(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("steps" in payload) || !Array.isArray(payload.steps)) return "";
+  const output = payload.steps.find((step) => step && typeof step === "object" && "type" in step && step.type === "model_output");
+  if (!output || typeof output !== "object" || !("content" in output) || !Array.isArray(output.content)) return "";
+  return output.content.flatMap((part: unknown) => part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part && typeof part.text === "string" ? [part.text] : []).join("");
+}
+
+function isGroundedUrl(value: unknown, groundedUrls: Set<string>) {
   if (typeof value !== "string" || !value.startsWith("https://")) return false;
   try {
-    return groundedHosts.has(new URL(value).hostname);
+    return groundedUrls.has(new URL(value).toString());
   } catch {
     return false;
   }
@@ -46,6 +53,78 @@ function buildScoringCriteria(value: unknown) {
   const totalScore = Object.values(criteria).reduce((sum, item) => sum + item.score, 0);
   const grade = totalScore >= 86 ? "A*" : totalScore >= 76 ? "A" : totalScore >= 66 ? "B" : totalScore >= 57 ? "C" : "D";
   return { ...criteria, totalScore, grade };
+}
+
+type CrawledBenchmarkArticle = {
+  title: string;
+  url: string;
+  sourceName: string;
+  sourceRegion: string;
+  sourceCategory: string;
+  content: string;
+  publishedDate?: string;
+};
+
+type BenchmarkArticleSummary = Omit<CrawledBenchmarkArticle, "content"> & {
+  summary: string;
+  relatedInitiatives: string[];
+};
+
+async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmarkArticle[]): Promise<BenchmarkArticleSummary[]> {
+  const summaries: BenchmarkArticleSummary[] = [];
+  for (let offset = 0; offset < articles.length; offset += 25) {
+    const batch = articles.slice(offset, offset + 25);
+    const prompt = `Summarize every supplied crawled article for a Trium/Coronation venture research report. Return a JSON array with exactly one object for each input URL: {"url":"exact input URL","summary":"two or three factual sentences from this article","relatedInitiatives":["named venture initiatives explicitly described in the article"]}. Use an empty array when the article names no initiative. Do not infer facts from outside the article, invent metrics, or omit articles.\n\n${batch.map((article, index) => `ARTICLE ${index + 1}\nURL: ${article.url}\nTitle: ${article.title}\nSource: ${article.sourceName}\nText: ${article.content}`).join("\n\n")}`;
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          model: env.GEMINI_MODEL || "gemini-3.8-flash",
+          input: prompt,
+          response_format: { type: "text", mime_type: "application/json" },
+          generation_config: { thinking_level: "low", max_output_tokens: 5000 },
+        }),
+        signal: AbortSignal.timeout(90000),
+      });
+      if (response.ok) break;
+      const detail = (await response.text()).slice(0, 250);
+      const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === 3) throw new Error(`Gemini article summary returned HTTP ${response.status} after ${attempt + 1} attempt(s). ${detail}`);
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    if (!response?.ok) throw new Error("Gemini article summarization failed after retrying transient errors.");
+    const payload: unknown = await response.json();
+    const text = getGeminiText(payload);
+    if (!text) throw new Error("Gemini returned no article summaries.");
+    const parsed: unknown = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
+    if (!Array.isArray(parsed)) throw new Error("Gemini returned an invalid article summary list.");
+    const byUrl = new Map<string, { summary: string; relatedInitiatives: string[] }>();
+    for (const item of parsed) {
+      if (!item || typeof item !== "object" || !("url" in item) || typeof item.url !== "string" || !("summary" in item) || typeof item.summary !== "string") continue;
+      const names = "relatedInitiatives" in item && Array.isArray(item.relatedInitiatives)
+        ? item.relatedInitiatives.filter((name: unknown): name is string => typeof name === "string").map((name: string) => name.slice(0, 160)).slice(0, 8)
+        : [];
+      byUrl.set(item.url, { summary: item.summary.slice(0, 1200), relatedInitiatives: names });
+    }
+    for (const article of batch) {
+      const summary = byUrl.get(article.url);
+      if (!summary?.summary.trim()) throw new Error(`Gemini did not summarize crawled article ${article.url}.`);
+      summaries.push({
+        title: article.title,
+        url: article.url,
+        sourceName: article.sourceName,
+        sourceRegion: article.sourceRegion,
+        sourceCategory: article.sourceCategory,
+        ...(article.publishedDate ? { publishedDate: article.publishedDate } : {}),
+        ...summary,
+      });
+    }
+  }
+  return summaries;
 }
 
 
@@ -157,10 +236,21 @@ export const runBenchmark = action({
     const input: Array<Record<string, unknown>> = [];
     const brief = [args.description, args.problem && `Problem: ${args.problem}`, args.solution && `Solution: ${args.solution}`, args.targetCustomer && `Target: ${args.targetCustomer}`, args.monetization && `Monetization: ${args.monetization}`].filter(Boolean).join("\n\n");
 
-    const domains = await ctx.runQuery(internal.sources.getActiveSourceDomains, {});
+    const crawl = await ctx.runAction(internal.scouting.collectBenchmarkArticles, {});
+    const sourceArticles = await summarizeBenchmarkArticles(key, crawl.articles);
+    const domains = Array.from(new Set(crawl.articles.flatMap((article) => {
+      try { return [new URL(article.url).hostname.replace(/^www\./, "")]; } catch { return []; }
+    })));
+    const crawledEvidence = sourceArticles.map((article, index) =>
+      `ARTICLE ${index + 1}\nTitle: ${article.title}\nSource: ${article.sourceName} (${article.sourceRegion}; ${article.sourceCategory})\nURL: ${article.url}\nPublished: ${article.publishedDate || "Not stated"}\nSummary: ${article.summary}\nInitiatives: ${article.relatedInitiatives.join(", ") || "None identified"}`
+    ).join("\n\n");
     const searchInstruction = `CRITICAL CRAWLING INSTRUCTION: You MUST use the google_search tool to actively scrape the internet and find real benchmarks. You MUST prioritize crawling the following curated sources in our system:
   ${domains.map((domain: string) => `site:${domain}`).join(" OR ")}
-Use Google Search evidence for every factual claim. Do not invent user counts, revenue, ROI, customer demographics, partnerships, funding, or legal conclusions; state "not publicly reported" when evidence is unavailable. Separate cited facts from your analysis.`;
+Registry crawl coverage: ${crawl.sourcesSucceeded} of ${crawl.sourcesAttempted} active sources returned pages${crawl.failedSources.length ? `; failures: ${crawl.failedSources.join("; ")}` : "."}
+Use the crawled article text below and Google Search to identify local and international benchmarks. Do not invent user counts, revenue, ROI, customer demographics, partnerships, funding, or legal conclusions; state "not publicly reported" when evidence is unavailable. Separate cited facts from your analysis. Only cite URLs present in the crawled articles or in Gemini Search citations.
+
+Crawled registry articles:
+${crawledEvidence}`;
 
     let prompt = "";
     if (isFlow4b) {
@@ -310,15 +400,16 @@ Brief: ${brief}`;
     if (!text) throw new Error("The research provider returned no report.");
 
     const generated = safeJson(text);
-    const groundedUrls: string[] = textBlocks.flatMap((part: any) => part.annotations || [])
+    const groundedUrls: string[] = [
+      ...textBlocks.flatMap((part: any) => part.annotations || [])
       .map((annotation: any) => annotation.url)
-      .filter((url: unknown): url is string => typeof url === "string" && /^https:\/\//.test(url));
-    const groundedHosts = new Set(groundedUrls.map((url) => new URL(url).hostname));
-    const groundedUrlByHost = new Map(groundedUrls.map((url) => [new URL(url).hostname, url]));
+      .filter((url: unknown): url is string => typeof url === "string" && /^https:\/\//.test(url)),
+      ...crawl.articles.map((article) => article.url),
+    ];
+    const groundedUrlSet = new Set(groundedUrls.map((url) => new URL(url).toString()));
 
     const benchmarks = Array.isArray(generated.benchmarks) ? generated.benchmarks.flatMap((item: any) => {
-      if (!item || typeof item !== "object" || !isGroundedUrl(item.sourceUrl, groundedHosts)) return [];
-      const host = new URL(item.sourceUrl).hostname;
+      if (!item || typeof item !== "object" || !isGroundedUrl(item.sourceUrl, groundedUrlSet)) return [];
       const companyName = typeof item.companyName === "string" ? item.companyName.trim() : "";
       if (!companyName) return [];
       return [{
@@ -334,17 +425,16 @@ Brief: ${brief}`;
         roiAndViability: item.roiAndViability ? String(item.roiAndViability) : undefined,
         keyPartners: item.keyPartners ? String(item.keyPartners) : undefined,
         lessonsLearned: typeof item.lessonsLearned === "string" ? item.lessonsLearned : "",
-        sourceUrl: groundedUrlByHost.get(host) || item.sourceUrl,
-        sourceName: typeof item.sourceName === "string" && item.sourceName.trim() ? item.sourceName : host,
+        sourceUrl: item.sourceUrl,
+        sourceName: typeof item.sourceName === "string" && item.sourceName.trim() ? item.sourceName : new URL(item.sourceUrl).hostname,
         confidence: "Gemini Search-cited; verify claims at source",
       }];
     }) : [];
     const gapInitiativeIdeas = isFlow4b && Array.isArray(generated.gapInitiativeIdeas)
       ? generated.gapInitiativeIdeas.flatMap((item: any) => {
-        if (!item || typeof item !== "object" || !isGroundedUrl(item.sourceLink, groundedHosts)) return [];
+        if (!item || typeof item !== "object" || !isGroundedUrl(item.sourceLink, groundedUrlSet)) return [];
         const requiredFields = ["ideaName", "description", "category", "problem", "solution", "similarSolutions", "targetCustomer", "goToMarket", "monetization"];
         if (requiredFields.some((field) => typeof item[field] !== "string" || !item[field].trim())) return [];
-        const host = new URL(item.sourceLink).hostname;
         return [{
           ideaName: item.ideaName,
           description: item.description,
@@ -357,11 +447,10 @@ Brief: ${brief}`;
           valueDrivers: Array.isArray(item.valueDrivers) ? item.valueDrivers.filter((value: unknown): value is string => typeof value === "string") : [],
           monetization: item.monetization,
           ...(typeof item.additionalDetails === "string" ? { additionalDetails: item.additionalDetails } : {}),
-          sourceLink: groundedUrlByHost.get(host) || item.sourceLink,
+          sourceLink: item.sourceLink,
         }];
       })
       : undefined;
-
     const report = {
       ideaName: String(generated.ideaName || args.ideaName || "Venture concept"),
       sector: String(generated.sector || args.sector || "Fintech & Financial Inclusion"),
@@ -373,6 +462,9 @@ Brief: ${brief}`;
       targetCustomer: String(args.targetCustomer || generated.targetCustomer || ""),
       monetization: String(args.monetization || generated.monetization || ""),
       flowType: args.flowType || "flow4a_benchmark",
+      sourcesCrawled: crawl.sourcesSucceeded,
+      sourceCrawlFailures: crawl.failedSources,
+      sourceArticles,
       counts: {
         total: benchmarks.length,
         nearbyAfrica: benchmarks.filter((item: any) => item.regionTier === "Nearby Africa").length,

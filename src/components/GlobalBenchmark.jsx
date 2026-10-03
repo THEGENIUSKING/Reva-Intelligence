@@ -1,4 +1,6 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useAction } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { extractLocalDocumentText, extractBriefLocally } from "../utils/documentExtractor";
 import { normalizeSector, CANONICAL_SECTORS } from "./Dashboard";
 
@@ -98,6 +100,68 @@ export const ASSESSMENT_GUIDE_CRITERIA = [
   }
 ];
 
+function CrawledArticleEvidence({ report }) {
+  const articles = report.sourceArticles || [];
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.ceil(articles.length / pageSize) || 1;
+  const pageArticles = articles.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => setPage(1), [report._id, articles.length]);
+
+  return (
+    <section className="rounded-xl bg-white/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-amber-900/10">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-amber-900/10 pb-3">
+        <div>
+          <h3 className="text-base font-bold text-on-surface font-headline">Crawled source evidence</h3>
+          <p className="mt-1 text-xs text-secondary">{report.sourcesCrawled ?? 0} active sources crawled · {articles.length} relevant article references</p>
+        </div>
+        {report.sourceCrawlFailures?.length > 0 && <span className="text-xs font-semibold text-amber-800">{report.sourceCrawlFailures.length} source crawl failures</span>}
+      </div>
+      {report.sourceCrawlFailures?.length > 0 && (
+        <details className="mt-3 rounded-lg bg-amber-500/5 px-3 py-2 text-xs text-amber-900">
+          <summary className="cursor-pointer font-semibold">View sources that could not be crawled</summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {report.sourceCrawlFailures.map((failure, index) => <li key={`${index}-${failure}`}>{failure}</li>)}
+          </ul>
+        </details>
+      )}
+      {pageArticles.length ? (
+        <div className="divide-y divide-amber-900/10">
+          {pageArticles.map((article) => (
+            <article key={article.url} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div>
+                <a href={article.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-on-surface hover:text-primary hover:underline">
+                  {article.title}
+                </a>
+                <p className="mt-0.5 text-[11px] text-secondary">{article.sourceName} · {article.sourceRegion} · {article.sourceCategory}{article.publishedDate ? ` · ${article.publishedDate}` : ""}</p>
+                <p className="mt-2 text-xs leading-relaxed text-secondary">{article.summary}</p>
+                {article.relatedInitiatives?.length > 0 && (
+                  <p className="mt-2 text-[11px] text-on-surface"><strong>Initiatives identified:</strong> {article.relatedInitiatives.join(", ")}</p>
+                )}
+              </div>
+              <a href={article.url} target="_blank" rel="noreferrer" aria-label={`Open ${article.title}`} className="inline-flex items-center gap-1 self-start text-xs font-semibold text-primary hover:underline">
+                Source <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+              </a>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="py-5 text-xs text-secondary">No article-level summaries were returned for this report.</p>
+      )}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-amber-900/10 pt-3 text-xs">
+          <span className="text-secondary">Page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="rounded-md bg-surface-low px-3 py-1.5 font-semibold text-on-surface disabled:opacity-40">Previous</button>
+            <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-md bg-surface-low px-3 py-1.5 font-semibold text-on-surface disabled:opacity-40">Next</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmark, onUploadDocument }) {
   const [activeFlow, setActiveFlow] = useState("flow4a_benchmark"); // 'flow4a_benchmark' | 'flow4b_gap_initiatives'
   const [step, setStep] = useState(1);
@@ -111,7 +175,11 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
   const [selectedId, setSelectedId] = useState("");
   const [localReport, setLocalReport] = useState(null);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [screeningIdeas, setScreeningIdeas] = useState(false);
+  const [screeningNotice, setScreeningNotice] = useState("");
+  const [screeningError, setScreeningError] = useState("");
   const fileInput = useRef(null);
+  const screenBatch = useAction(api.screening.screenBatch);
 
   const selectedReport = useMemo(
     () => localReport || benchmarks.find((report) => report._id === selectedId) || null,
@@ -235,7 +303,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
             flowType: activeFlow,
           });
         } catch (convexErr) {
-          console.warn("Convex research action unavailable, generating calibrated report locally:", convexErr);
+          console.warn("Convex research action unavailable:", convexErr);
         }
       }
 
@@ -272,6 +340,36 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
     setTimeout(() => setCopiedKey(null), 1800);
   };
 
+  const screenGeneratedIdeas = async () => {
+    const ideas = selectedReport?.gapInitiativeIdeas || [];
+    if (!ideas.length) return;
+    const citedIdeas = ideas.filter((idea) => idea.sourceLink);
+    if (!citedIdeas.length) {
+      setScreeningError("These saved ideas have no benchmark source link, so they cannot be sent for duplicate matching or screening.");
+      return;
+    }
+    setScreeningIdeas(true);
+    setScreeningNotice("");
+    setScreeningError("");
+    try {
+      const result = await screenBatch({
+        scoutType: "benchmark",
+        candidates: citedIdeas.map((idea) => ({
+          articleUrl: idea.sourceLink,
+          ideaName: idea.ideaName,
+          sector: idea.category,
+          summary: [idea.description, idea.problem, idea.solution].filter(Boolean).join("\n"),
+        })),
+      });
+      setScreeningNotice(`Reva screened ${result.processed} of ${citedIdeas.length} cited ideas. Passing opportunities are queued to DIT when email is configured.`);
+      if (result.errors.length) setScreeningError(result.errors.join(" "));
+    } catch (err) {
+      setScreeningError(err instanceof Error ? err.message : "Could not screen generated ideas.");
+    } finally {
+      setScreeningIdeas(false);
+    }
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-12 font-body text-on-surface">
       {/* Top Banner - Compact Vanta Fluid Design */}
@@ -306,7 +404,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 : "text-secondary hover:text-on-surface"
             }`}
           >
-            Flow 4A: Precedent Benchmark
+            Benchmark report
           </button>
           <button
             type="button"
@@ -317,7 +415,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 : "text-secondary hover:text-on-surface"
             }`}
           >
-            Flow 4B: Gap-Driven Ideas
+            Gap-driven ideas
           </button>
         </div>
       </header>
@@ -570,7 +668,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/80 p-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-amber-900/10">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-primary/10 text-primary">
-                {selectedReport.flowType === "flow4b_gap_initiatives" ? "Flow 4B Output" : "Flow 4A Output"}
+                {selectedReport.flowType === "flow4b_gap_initiatives" ? "Gap-driven ideas" : "Benchmark report"}
               </span>
               <h2 className="text-base font-bold text-on-surface font-headline">{selectedReport.ideaName}</h2>
               <span className="text-xs text-secondary">({selectedReport.sector})</span>
@@ -750,6 +848,8 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 </div>
               </section>
 
+              <CrawledArticleEvidence key={selectedReport._id} report={selectedReport} />
+
               {/* What to Apply vs What to Avoid in Nigeria */}
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-xl bg-white/80 p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-amber-900/10">
@@ -818,14 +918,26 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 ) : <p className="mt-3 text-xs text-secondary">No benchmark patterns were returned.</p>}
               </section>
 
+              <CrawledArticleEvidence key={selectedReport._id} report={selectedReport} />
+
               {/* Generated Initiative Ideas in Specified Format */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-on-surface font-headline">
                     Synthesized Viable Initiative Ideas ({selectedReport.gapInitiativeIdeas?.length ?? 0} Concepts)
                   </h3>
-                  <span className="text-xs text-secondary font-medium">Formatted for Trium Idea Submission</span>
+                  <button
+                    type="button"
+                    onClick={screenGeneratedIdeas}
+                    disabled={screeningIdeas || !selectedReport.gapInitiativeIdeas?.length}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-container disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">fact_check</span>
+                    {screeningIdeas ? "Checking duplicates and screening..." : "Check duplicates & screen"}
+                  </button>
                 </div>
+                {screeningNotice && <p role="status" className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900">{screeningNotice}</p>}
+                {screeningError && <p role="alert" className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900">{screeningError}</p>}
 
                 {(selectedReport.gapInitiativeIdeas || []).map((idea, idx) => (
                   <article
@@ -963,7 +1075,7 @@ export function GlobalBenchmark({ benchmarks = [], onExtractBrief, onRunBenchmar
                 <div className="flex items-center justify-between">
                   <span className="truncate font-bold text-xs text-on-surface font-headline">{report.ideaName}</span>
                   <span className="text-[10px] font-bold uppercase text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                    {report.flowType === "flow4b_gap_initiatives" ? "Flow 4B" : "Flow 4A"}
+                    {report.flowType === "flow4b_gap_initiatives" ? "Ideas" : "Benchmark"}
                   </span>
                 </div>
                 <span className="mt-1 block text-[11px] text-secondary">

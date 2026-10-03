@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { normalizeSector, CANONICAL_SECTORS } from "./Dashboard";
 import { ASSESSMENT_GUIDE_CRITERIA } from "./GlobalBenchmark";
@@ -41,7 +41,11 @@ export function ContinuousScout({ onNavigate }) {
     ? "Partial"
     : scoutStatus;
   const recentFindings = useQuery(api.scouting.listRecentFindings, { limit: 60 }) || [];
-  const recentArticles = useQuery(api.scouting.listRecentArticles, { limit: 100 }) || [];
+  const {
+    results: recentArticles,
+    status: articleArchiveStatus,
+    loadMore: loadMoreArticles,
+  } = usePaginatedQuery(api.scouting.listRecentArticlesPage, {}, { initialNumItems: 10 });
   const initiatives = useQuery(api.initiatives.listInitiatives, { limit: 50 }) || [];
 
   const runNow = useAction(api.scouting.runNow);
@@ -657,7 +661,7 @@ export function ContinuousScout({ onNavigate }) {
             <h3 className="text-sm font-bold text-on-surface font-headline uppercase tracking-wider">
               Screened Venture Opportunities (7 Trium Investment Committee Criteria)
             </h3>
-            <span className="text-xs text-secondary">Pass Threshold: Score &ge; 66 / 100 (Grade B+)</span>
+            <span className="text-xs text-secondary">Pass threshold: 66/100 · Grade B</span>
           </div>
 
           {paginatedScreened.length ? (
@@ -682,6 +686,9 @@ export function ContinuousScout({ onNavigate }) {
                       }`}>
                         Grade {item.vantaGrade} ({item.vantaScore}/100) — {item.vantaScore >= 66 ? "PASS" : "RESERVED"}
                       </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${item.dedupeVerdict === "NOT_CHECKED" ? "bg-surface-low text-secondary" : item.vantaDuplicateFound ? "bg-amber-500/10 text-amber-900" : "bg-emerald-500/10 text-emerald-800"}`}>
+                        {item.dedupeVerdict === "NOT_CHECKED" ? "Vanta not checked" : item.vantaDuplicateFound ? `${item.vantaDuplicateCount} Vanta match${item.vantaDuplicateCount === 1 ? "" : "es"}` : "No Vanta match"}
+                      </span>
                     </div>
                     <p className="text-xs text-secondary leading-relaxed max-w-2xl">{item.problem}</p>
                   </div>
@@ -693,6 +700,16 @@ export function ContinuousScout({ onNavigate }) {
                     </div>
                   )}
                 </div>
+
+                {item.vantaDuplicateFound && item.matchingVantaList?.length > 0 && (
+                  <ul className="space-y-1.5 rounded-lg bg-amber-500/5 p-3 text-[11px] text-secondary">
+                    {item.matchingVantaList.map((duplicate, index) => (
+                      <li key={`${duplicate.name}-${index}`}>
+                        <strong className="text-on-surface">{duplicate.name}</strong> · {Math.round(duplicate.similarity * 100)}% match · {duplicate.description}
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
                 {/* 7-Criteria Score Breakdown Grid */}
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 text-xs">
@@ -819,6 +836,21 @@ export function ContinuousScout({ onNavigate }) {
           </button>
         </div>
       </div>
+      {activeTab === "articles" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-low/70 px-3 py-2 text-xs">
+          <span className="text-secondary">
+            {articleArchiveStatus === "LoadingFirstPage" ? "Loading article archive..." : `${recentArticles.length} session articles loaded${articleArchiveStatus === "Exhausted" ? " · archive complete" : ""}`}
+          </span>
+          <button
+            type="button"
+            disabled={articleArchiveStatus !== "CanLoadMore"}
+            onClick={() => loadMoreArticles(10)}
+            className="rounded-md bg-white px-3 py-1.5 font-semibold text-on-surface shadow-xs disabled:opacity-40"
+          >
+            {articleArchiveStatus === "LoadingMore" ? "Loading..." : "Load next archive batch"}
+          </button>
+        </div>
+      )}
 
       {/* Vanta Deduplication Outcome Modal (Requirement 8) */}
       {vantaDedupeOutcome && (

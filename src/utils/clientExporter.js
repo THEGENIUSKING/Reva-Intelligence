@@ -34,6 +34,26 @@ export async function exportToPowerPoint(report) {
   titleSlide.addText(report.description || "No concept description supplied.", { x: 0.68, y: 2.8, w: 11.5, h: 1.2, fontSize: 18, color: color.ink, breakLine: false, valign: "top", fit: "shrink" });
   titleSlide.addText(`Prepared ${new Date(report.createdAt || Date.now()).toLocaleDateString()}`, { x: 0.68, y: 6.7, w: 6, h: 0.3, fontSize: 10, color: color.muted });
 
+  if (report.scoringCriteria) {
+    const slide = pptx.addSlide();
+    slide.background = { color: "FFFFFF" };
+    slide.addText("TRIUM / CORONATION GROUP", { x: 0.55, y: 0.35, w: 5, h: 0.25, fontSize: 10, bold: true, charSpacing: 1.3, color: color.accent });
+    slide.addText("Assessment guide", { x: 0.55, y: 0.7, w: 12, h: 0.5, fontSize: 23, bold: true, color: color.ink });
+    const criteriaRows = [["Criterion", "Score", "Evidence-based assessment"]];
+    for (const [name, value] of Object.entries(report.scoringCriteria)) {
+      if (!value || typeof value !== "object" || !("score" in value)) continue;
+      const criterion = value;
+      criteriaRows.push([name.replace(/([A-Z])/g, " $1"), `${criterion.score}/${criterion.max}`, criterion.rationale || "No rationale returned."]);
+    }
+    slide.addTable(criteriaRows, {
+      x: 0.55, y: 1.45, w: 12.2, h: 5.3,
+      border: { type: "solid", color: "DED8CE", pt: 0.6 },
+      fill: "FFFFFF", color: color.ink, fontFace: "Aptos", fontSize: 11,
+      rowH: 0.65, colW: [2.3, 1.2, 8.7], margin: 0.12, valign: "mid", autoFit: false,
+    });
+    slide.addText(`Composite score ${report.scoringCriteria.totalScore ?? "—"}/100 · Grade ${report.scoringCriteria.grade || "Not scored"}`, { x: 0.55, y: 6.85, w: 12, h: 0.25, fontSize: 10, color: color.muted });
+  }
+
   const peers = report.benchmarks || [];
   for (let offset = 0; offset < peers.length; offset += 4) {
     const slide = pptx.addSlide();
@@ -46,7 +66,13 @@ export async function exportToPowerPoint(report) {
         peer.companyName || "Unspecified",
         `${peer.country || "Not verified"} / ${peer.regionTier || "Not classified"}`,
         peer.businessModel || "Not verified",
-        `${peer.operationalScale || "Scale not verified"}. ${peer.lessonsLearned || "No lesson supplied."}`,
+        [
+          `Scale: ${peer.operationalScale || "Not publicly reported"}`,
+          `Customers/revenue: ${peer.customersAndRevenues || "Not publicly reported"}`,
+          `ROI/viability: ${peer.roiAndViability || "Not publicly reported"}`,
+          `Partners: ${peer.keyPartners || "Not publicly reported"}`,
+          `Lesson: ${peer.lessonsLearned || "Not stated"}`,
+        ].join("\n"),
         peer.sourceUrl || "No verified citation",
       ]);
     }
@@ -61,6 +87,21 @@ export async function exportToPowerPoint(report) {
       rowColors: [color.card],
     });
     slide.addText(`Sources are linked for verification. ${peers.length} sourced peers returned.`, { x: 0.55, y: 6.75, w: 12, h: 0.25, fontSize: 9, color: color.muted });
+  }
+
+  const sourceArticles = report.sourceArticles || [];
+  for (let offset = 0; offset < sourceArticles.length; offset += 4) {
+    const slide = pptx.addSlide();
+    slide.background = { color: "FFFFFF" };
+    slide.addText("CRAWLED SOURCE EVIDENCE", { x: 0.55, y: 0.35, w: 5, h: 0.25, fontSize: 10, bold: true, charSpacing: 1.3, color: color.accent });
+    slide.addText(`${report.ideaName || "Initiative"}: source articles`, { x: 0.55, y: 0.7, w: 12, h: 0.5, fontSize: 23, bold: true, color: color.ink });
+    sourceArticles.slice(offset, offset + 4).forEach((article, index) => {
+      const y = 1.45 + index * 1.3;
+      slide.addText(article.title, { x: 0.65, y, w: 11.8, h: 0.25, fontSize: 14, bold: true, color: color.ink, fit: "shrink" });
+      slide.addText(`${article.sourceName} · ${article.sourceRegion}${article.publishedDate ? ` · ${article.publishedDate}` : ""}`, { x: 0.65, y: y + 0.27, w: 11.8, h: 0.2, fontSize: 9, color: color.muted });
+      slide.addText(article.summary, { x: 0.65, y: y + 0.49, w: 11.8, h: 0.42, fontSize: 10, color: color.ink, fit: "shrink", valign: "top" });
+      slide.addText(`Initiatives: ${(article.relatedInitiatives || []).join(", ") || "None stated"} · ${article.url}`, { x: 0.65, y: y + 0.93, w: 11.8, h: 0.24, fontSize: 8, color: color.accent, fit: "shrink" });
+    });
   }
 
   const guidance = report.blueprint || {};
@@ -117,11 +158,11 @@ export async function exportToWord(report) {
             new Paragraph({
               children: [
                 new TextRun({ text: "Sector: ", bold: true }),
-                new TextRun(report.sector || "Emerging Tech / Digital Services"),
+                new TextRun(report.sector || "Uncategorized"),
                 new TextRun({ text: "   |   Date: ", bold: true }),
                 new TextRun(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })),
                 new TextRun({ text: "   |   Scope: ", bold: true }),
-                new TextRun(report.scope || "Nearby Africa, Emerging Peers & Global Leaders")
+                new TextRun(report.scope || "Scope not specified")
               ],
               spacing: { after: 300 }
             }),
@@ -149,10 +190,24 @@ export async function exportToWord(report) {
             new Paragraph({
               children: [
                 new TextRun({ text: "Target Customer & Market: ", bold: true }),
-                new TextRun(report.targetCustomer || "Nigerian SMEs, commercial enterprises and consumer segments")
+                new TextRun(report.targetCustomer || "Not specified")
               ],
               spacing: { after: 250 }
             }),
+
+            ...(report.scoringCriteria ? [
+              new Paragraph({ text: "Trium 7-Criteria Assessment", heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 100 } }),
+              new Paragraph({ text: `Composite score: ${report.scoringCriteria.totalScore ?? "Not scored"}/100 · Grade ${report.scoringCriteria.grade || "Not graded"}`, spacing: { after: 120 } }),
+              ...Object.entries(report.scoringCriteria)
+                .filter(([, value]) => value && typeof value === "object" && "score" in value)
+                .map(([name, value]) => new Paragraph({
+                  children: [
+                    new TextRun({ text: `${name.replace(/([A-Z])/g, " $1")}: ${value.score}/${value.max} — `, bold: true }),
+                    new TextRun(value.rationale || "No rationale returned."),
+                  ],
+                  spacing: { after: 80 },
+                })),
+            ] : []),
 
             // Localization Blueprint
             new Paragraph({
@@ -176,7 +231,7 @@ export async function exportToWord(report) {
                 ],
                 spacing: { after: 120 }
               })
-            ) || [new Paragraph({ text: "Apply field agent aggregators and localized offline USSD/WhatsApp workflows." })]),
+            ) || []),
 
             // What to Avoid
             new Paragraph({
@@ -193,7 +248,7 @@ export async function exportToWord(report) {
                 ],
                 spacing: { after: 120 }
               })
-            ) || [new Paragraph({ text: "Avoid unhedged foreign hardware balance sheet ownership and pure unsecured smallholder credit." })]),
+            ) || []),
 
             // Investment Committee Verdict
             new Paragraph({
@@ -204,7 +259,7 @@ export async function exportToWord(report) {
             new Paragraph({
               children: [
                 new TextRun({
-                  text: report.blueprint?.triumStrategicVerdict || "HIGH STRATEGIC MERIT — Recommended for Trium Studio Investment Committee incubation review.",
+                  text: report.blueprint?.triumStrategicVerdict || "No strategic verdict was returned.",
                   bold: true
                 })
               ],
@@ -224,9 +279,9 @@ export async function exportToWord(report) {
                   children: [
                     new TableCell({ children: [new Paragraph({ text: "Company & Country", bold: true })] }),
                     new TableCell({ children: [new Paragraph({ text: "Region Tier", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Funding & Scale", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Business Model", bold: true })] }),
-                    new TableCell({ children: [new Paragraph({ text: "Key Lesson Learned", bold: true })] })
+                    new TableCell({ children: [new Paragraph({ text: "Funding, scale & customer evidence", bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: "Model & viability", bold: true })] }),
+                    new TableCell({ children: [new Paragraph({ text: "Partners, lesson & source", bold: true })] })
                   ]
                 }),
                 ...(report.benchmarks?.map(bm =>
@@ -234,14 +289,28 @@ export async function exportToWord(report) {
                     children: [
                       new TableCell({ children: [new Paragraph(`${bm.companyName} (${bm.country || "Global"})`)] }),
                       new TableCell({ children: [new Paragraph(bm.regionTier || "Nearby Africa")] }),
-                      new TableCell({ children: [new Paragraph(`${bm.fundingRaised || "Undisclosed"} | ${bm.operationalScale || "N/A"}`)] }),
-                      new TableCell({ children: [new Paragraph(bm.businessModel || "N/A")] }),
-                      new TableCell({ children: [new Paragraph(bm.lessonsLearned || "N/A")] })
+                      new TableCell({ children: [new Paragraph([`Funding: ${bm.fundingRaised || "Not publicly reported"}`, `Scale: ${bm.operationalScale || "Not publicly reported"}`, `Customers/revenue: ${bm.customersAndRevenues || "Not publicly reported"}`].join("\n"))] }),
+                      new TableCell({ children: [new Paragraph([bm.businessModel || "Not reported", `ROI/viability: ${bm.roiAndViability || "Not publicly reported"}`].join("\n"))] }),
+                      new TableCell({ children: [new Paragraph([`Partners: ${bm.keyPartners || "Not publicly reported"}`, bm.lessonsLearned || "No lesson stated", bm.sourceUrl].join("\n"))] })
                     ]
                   })
                 ) || [])
               ]
-            })
+            }),
+            new Paragraph({
+              text: "5. Crawled Source Articles",
+              heading: HeadingLevel.HEADING_1,
+              spacing: { before: 220, after: 100 }
+            }),
+            ...(report.sourceArticles?.map((article, index) => new Paragraph({
+              children: [
+                new TextRun({ text: `${index + 1}. ${article.title} — ${article.sourceName} (${article.sourceRegion})\n`, bold: true }),
+                new TextRun(`${article.summary}\n`),
+                new TextRun({ text: `Initiatives identified: ${(article.relatedInitiatives || []).join(", ") || "None stated"}\n`, italics: true }),
+                new TextRun({ text: article.url, color: "0563C1", underline: {} }),
+              ],
+              spacing: { after: 140 }
+            })) || [])
           ]
         }
       ]
@@ -303,7 +372,7 @@ export function exportToPdf(report) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...muted);
-    doc.text(`Sector: ${report.sector || "Emerging Markets Tech"}  |  Date: ${new Date().toLocaleDateString()}`, 15, y);
+    doc.text(`Sector: ${report.sector || "Uncategorized"}  |  Date: ${new Date().toLocaleDateString()}`, 15, y);
     y += 10;
 
     // Concept Summary Box
@@ -314,9 +383,33 @@ export function exportToPdf(report) {
     doc.setFont("helvetica", "bold");
     doc.text("Concept Overview:", 18, y + 5);
     doc.setFont("helvetica", "normal");
-    const descLines = doc.splitTextToSize(report.description || report.problem || "Venture concept benchmarking.", 174);
+    const descLines = doc.splitTextToSize(report.description || report.problem || "", 174);
     doc.text(descLines.slice(0, 2), 18, y + 11);
     y += 28;
+
+    if (report.scoringCriteria) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...dark);
+      doc.text("Trium 7-Criteria Assessment", 15, y);
+      y += 6;
+      doc.setFontSize(8.5);
+      doc.text(`Composite score: ${report.scoringCriteria.totalScore ?? "Not scored"}/100 · Grade ${report.scoringCriteria.grade || "Not graded"}`, 15, y);
+      y += 5;
+      for (const [name, criterion] of Object.entries(report.scoringCriteria)) {
+        if (!criterion || typeof criterion !== "object" || !("score" in criterion)) continue;
+        const scoreText = `${name.replace(/([A-Z])/g, " $1")}: ${criterion.score}/${criterion.max} · ${criterion.rationale || "No rationale returned."}`;
+        const scoreLines = doc.splitTextToSize(scoreText, 180);
+        if (y + scoreLines.length * 3.5 > 280) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFont("helvetica", "normal");
+        doc.text(scoreLines, 15, y);
+        y += scoreLines.length * 3.5 + 1;
+      }
+      y += 3;
+    }
 
     // Section: What to Apply
     doc.setFont("helvetica", "bold");
@@ -338,9 +431,6 @@ export function exportToPdf(report) {
         doc.text(lines, 15, y);
         y += lines.length * 3.8 + 2;
       });
-    } else {
-      doc.text("• Deploy via asset-light field aggregator networks rather than balance sheet capex.", 15, y);
-      y += 6;
     }
     y += 3;
 
@@ -364,9 +454,6 @@ export function exportToPdf(report) {
         doc.text(lines, 15, y);
         y += lines.length * 3.8 + 2;
       });
-    } else {
-      doc.text("• Avoid unhedged FX hardware debt and pure unsecured smallholder retail financing.", 15, y);
-      y += 6;
     }
     y += 5;
 
@@ -380,7 +467,7 @@ export function exportToPdf(report) {
     doc.text("Trium Investment Committee Strategic Recommendation:", 18, y + 5);
     doc.setFont("helvetica", "normal");
     const verdictLines = doc.splitTextToSize(
-      report.blueprint?.triumStrategicVerdict || "HIGH STRATEGIC MERIT — Recommended for Trium Studio Investment Committee review.",
+      report.blueprint?.triumStrategicVerdict || "No strategic verdict was returned.",
       174
     );
     doc.text(verdictLines.slice(0, 2), 18, y + 10);
@@ -396,18 +483,57 @@ export function exportToPdf(report) {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     if (report.benchmarks?.length) {
-      report.benchmarks.slice(0, 4).forEach(bm => {
-        if (y > 270) {
+      report.benchmarks.forEach((bm) => {
+        const details = [
+          `Model: ${bm.businessModel || "Not reported"}`,
+          `Customers/revenue: ${bm.customersAndRevenues || "Not publicly reported"}`,
+          `ROI/viability: ${bm.roiAndViability || "Not publicly reported"}`,
+          `Partners: ${bm.keyPartners || "Not publicly reported"}`,
+          `Scale: ${bm.operationalScale || "Not reported"}`,
+          `Lesson: ${bm.lessonsLearned || "Not stated"}`,
+          `Source: ${bm.sourceUrl}`,
+        ].join("\n");
+        const detailLines = doc.splitTextToSize(details, 180);
+        const blockHeight = 8 + detailLines.length * 3.6;
+        if (y + blockHeight > 280) {
           doc.addPage();
           y = 20;
         }
         doc.setFont("helvetica", "bold");
-        doc.text(`${bm.companyName} (${bm.country || "Emerging"} • ${bm.regionTier || "Tier"})`, 15, y);
+        doc.text(`${bm.companyName} (${bm.country || "Not stated"} · ${bm.regionTier || "Unclassified"})`, 15, y);
         doc.setFont("helvetica", "normal");
-        doc.text(`Model: ${bm.businessModel || "N/A"}  |  Scale: ${bm.operationalScale || "N/A"}`, 15, y + 3.5);
-        const lesson = doc.splitTextToSize(`Lesson: ${bm.lessonsLearned || "Validated unit economics."}`, 180);
-        doc.text(lesson, 15, y + 7);
-        y += 12;
+        doc.text(detailLines, 15, y + 4);
+        y += blockHeight;
+      });
+    }
+
+    const sourceArticles = report.sourceArticles || [];
+    if (sourceArticles.length) {
+      doc.addPage();
+      y = 20;
+      doc.setTextColor(...dark);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Crawled Source Articles", 15, y);
+      y += 7;
+      sourceArticles.forEach((article, index) => {
+        const text = [
+          `${index + 1}. ${article.title}`,
+          `${article.sourceName} · ${article.sourceRegion} · ${article.publishedDate || "Date not stated"}`,
+          article.summary,
+          `Initiatives identified: ${(article.relatedInitiatives || []).join(", ") || "None stated"}`,
+          `Source: ${article.url}`,
+        ].join("\n");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        const lines = doc.splitTextToSize(text, 180);
+        const blockHeight = lines.length * 4 + 5;
+        if (y + blockHeight > 280) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(lines, 15, y);
+        y += blockHeight;
       });
     }
 

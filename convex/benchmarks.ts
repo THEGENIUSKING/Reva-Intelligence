@@ -65,6 +65,18 @@ export const saveGenerated = internalMutation({
     targetCustomer: v.string(),
     monetization: v.optional(v.string()),
     flowType: v.optional(v.string()),
+    sourcesCrawled: v.optional(v.number()),
+    sourceCrawlFailures: v.optional(v.array(v.string())),
+    sourceArticles: v.optional(v.array(v.object({
+      title: v.string(),
+      url: v.string(),
+      sourceName: v.string(),
+      sourceRegion: v.string(),
+      sourceCategory: v.string(),
+      summary: v.string(),
+      publishedDate: v.optional(v.string()),
+      relatedInitiatives: v.optional(v.array(v.string())),
+    }))),
     benchmarks: v.array(
       v.object({
         companyName: v.string(),

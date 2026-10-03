@@ -106,7 +106,7 @@ Reva is pre-configured with `vercel.json` and a custom deployment build pipeline
 | `VANTA_API_KEY` | Read-scoped Vanta bearer key | Duplicate matching; no Idea Bank write-back |
 | `RESEND_API_KEY` | Server-side Resend API key | Queue screening alerts to DIT |
 | `RESEND_FROM_EMAIL` | Verified sender address | Required for DIT email delivery |
-| `DIT_NOTIFICATION_EMAIL` | `digital-incubation@trium.ng` | Official DIT notification inbox |
+| `DIT_NOTIFICATION_EMAIL` | `olanrewajut935@gmail.com` (temporary) | Approved DIT recipient while the official sender/recipient setup is being resolved |
 | `REVA_ADMIN_EMAIL` | Reva administrator email | Approve or pause registered sources |
 
 4. Click **Deploy**. Vercel will run `scripts/vercel-build.mjs`, deploy the Convex server functions, and bundle the client.

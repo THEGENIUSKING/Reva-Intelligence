@@ -121,6 +121,9 @@ export const saveEvaluatedInitiative = internalMutation({
     matchingVantaId: v.optional(v.string()),
     matchingVantaName: v.optional(v.string()),
     dedupeDifferentiator: v.optional(v.string()),
+    vantaDuplicateFound: v.optional(v.boolean()),
+    vantaDuplicateCount: v.optional(v.number()),
+    matchingVantaList: v.optional(v.any()),
     vantaSubmissionStatus: v.optional(v.string()),
     vantaSubmissionId: v.optional(v.string()),
 

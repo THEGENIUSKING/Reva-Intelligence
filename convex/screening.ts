@@ -140,11 +140,12 @@ function escapeHtml(value: string) {
 }
 
 const scoutCandidate = v.object({ articleUrl: v.string(), ideaName: v.string(), sector: v.string(), industry: v.optional(v.string()), summary: v.string() });
+const screeningSourceType = v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"), v.literal("benchmark"));
 const viabilityDimensions = ["Demand and affordability", "Regulation", "Infrastructure and payments", "Competition", "Unit economics and FX", "Distribution and trust"];
 const revaCriteria = [["strategic_alignment", 20], ["customer_problem", 20], ["solution_fit", 15], ["market_opportunity", 15], ["differentiation", 10], ["sustainable_advantage", 10], ["feasibility", 10]] as const;
 
 export const processScoutCandidates = internalAction({
-  args: { scoutType: v.union(v.literal("emerging_tech"), v.literal("nigeria_policy")), candidates: v.array(scoutCandidate) },
+  args: { scoutType: screeningSourceType, candidates: v.array(scoutCandidate) },
   returns: v.object({ processed: v.number(), errors: v.array(v.string()) }),
   handler: async (ctx, { scoutType, candidates }) => {
     const errors: string[] = [];
@@ -173,7 +174,9 @@ export const processScoutCandidates = internalAction({
     const ownerId = "reva-scout";
     for (const candidate of candidates.slice(0, 20)) {
       try {
-        const match = portfolioAvailable ? portfolioMatch(candidate, portfolio) : null;
+        const matches = portfolioAvailable ? portfolioMatch(candidate, portfolio) : [];
+        const match = matches[0] || null;
+        const duplicateMatches = matches.filter((item) => item.score >= 0.45);
         const assessment = await assessCandidate(key, candidate, scoutType);
         const rawCriteria = assessment.criteriaScores && typeof assessment.criteriaScores === "object" ? assessment.criteriaScores as Record<string, any> : {};
         const criteriaScores: Record<string, { score: number; maxScore: number; rationale: string }> = {};
@@ -196,12 +199,22 @@ export const processScoutCandidates = internalAction({
         const viabilityRating = counts.High >= 3 ? "High" : counts.High + counts.Medium >= 4 ? "Medium" : "Low";
         const viabilityScore = Math.round(dimensions.reduce((sum, item) => sum + (item.rating === "High" ? 100 : item.rating === "Medium" ? 60 : 20), 0) / dimensions.length);
         const passed = viabilityRating !== "Low" && score >= 66;
-        const duplicateStatus = !portfolioAvailable ? "not_checked" : match ? (match.exact ? "exact_match" : "similarity_match") : "checked_no_match";
+        const duplicateStatus = !portfolioAvailable ? "not_checked" : duplicateMatches.length ? (match?.exact ? "exact_match" : "similarity_match") : "checked_no_match";
         const record = {
           ownerId, name: candidate.ideaName, sector: candidate.sector, industry: candidate.industry, description: candidate.summary,
           problem: String(assessment.problem || "Not specified"), solution: String(assessment.solution || candidate.summary), targetCustomer: String(assessment.targetCustomer || "Not specified"),
-          goToMarket: String(assessment.goToMarket || ""), sourceType: scoutType === "emerging_tech" ? "emerging_tech_scout" : "nigeria_policy_scout", sourceUrl: candidate.articleUrl, sourceMarket: "Nigeria",
-          dedupeVerdict: !portfolioAvailable ? "NOT_CHECKED" : match ? (match.exact ? "EXACT_DUPLICATE" : "NEAR_SIMILAR") : "NEW", dedupeSimilarity: match?.score || 0, matchingVantaId: match?.id, matchingVantaName: match?.name,
+          goToMarket: String(assessment.goToMarket || ""), sourceType: scoutType === "emerging_tech" ? "emerging_tech_scout" : scoutType === "nigeria_policy" ? "nigeria_policy_scout" : "benchmark_generated", sourceUrl: candidate.articleUrl, sourceMarket: "Nigeria",
+          dedupeVerdict: !portfolioAvailable ? "NOT_CHECKED" : duplicateMatches.length ? (match?.exact ? "EXACT_DUPLICATE" : "NEAR_SIMILAR") : "NEW", dedupeSimilarity: match?.score || 0, matchingVantaId: match?.id, matchingVantaName: match?.name,
+          ...(portfolioAvailable ? {
+            vantaDuplicateFound: duplicateMatches.length > 0,
+            vantaDuplicateCount: duplicateMatches.length,
+            matchingVantaList: duplicateMatches.slice(0, 20).map((item) => ({
+              name: item.name,
+              similarity: item.score,
+              description: item.description,
+              status: item.status,
+            })),
+          } : {}),
           dedupeDifferentiator: match ? String(assessment.differentiator || "Requires human review against the similar Vanta initiative.") : undefined,
           viabilityRating, viabilityScore, viabilityVerdict: String(assessment.viabilityVerdict || "Preliminary Nigeria viability assessment based on public sources."), viabilityDimensions: dimensions,
           vantaScore: score, vantaGrade: grade, vantaResult: passed ? "passed" : "declined", overallComments: String(assessment.recommendation || "Preliminary AI assessment; review source evidence before action."),
@@ -224,7 +237,7 @@ export const processScoutCandidates = internalAction({
               const criteriaText = Object.entries(criteriaScores).map(([name, item]) => "- " + name.replace(/_/g, " ") + ": " + item.score + "/" + item.maxScore + " — " + item.rationale).join("\n");
               await ctx.runMutation(internal.emailLogs.queueScreeningAlert, {
                 ownerId, initiativeId: id, initiativeName: candidate.ideaName, recipient,
-                subject: "Reva scout passed: " + grade + " · " + candidate.ideaName, vantaGrade: grade, vantaScore: score,
+                subject: (scoutType === "benchmark" ? "Reva benchmark idea passed: " : "Reva scout passed: ") + grade + " · " + candidate.ideaName, vantaGrade: grade, vantaScore: score,
                 html: "<h2>" + escapeHtml(candidate.ideaName) + "</h2><p>Sector: " + escapeHtml(candidate.sector) + "</p><p>Nigeria viability: " + escapeHtml(viabilityRating) + " (" + viabilityScore + "/100)</p><ul>" + dimensionHtml + "</ul><p>Reva 7-criteria grade: " + grade + " (" + score + "/100)</p><ul>" + criteriaHtml + "</ul><p>" + escapeHtml(record.overallComments) + "</p><p><strong>Strengths:</strong> " + escapeHtml(record.keyStrengths.join("; ") || "None identified") + "</p><p><strong>Risks:</strong> " + escapeHtml(record.keyRisks.join("; ") || "None identified") + "</p><p>Vanta duplicate status: " + escapeHtml(duplicateStatus) + ". Source: <a href=\"" + escapeHtml(candidate.articleUrl) + "\">" + escapeHtml(candidate.articleUrl) + "</a></p><p>AI assessment for DIT review; not a final investment decision.</p>",
                 text: candidate.ideaName + "\nSector: " + candidate.sector + "\nNigeria viability: " + viabilityRating + " (" + viabilityScore + "/100)\n" + dimensionText + "\nReva 7-criteria grade: " + grade + " (" + score + "/100)\n" + criteriaText + "\n" + record.overallComments + "\nStrengths: " + record.keyStrengths.join("; ") + "\nRisks: " + record.keyRisks.join("; ") + "\nVanta duplicate status: " + duplicateStatus + "\nSource: " + candidate.articleUrl + "\nAI assessment for DIT review; not a final investment decision.",
               });
@@ -243,12 +256,26 @@ export const processScoutCandidates = internalAction({
 async function assessCandidate(key: string, candidate: { ideaName: string; sector: string; summary: string; articleUrl: string }, scoutType: string) {
   const criteria = revaCriteria.map(([id, max]) => id + "=" + max).join(", ");
   const prompt = "Assess this public-source idea for Nigerian market viability and Reva's seven investment criteria. Use Google Search for current Nigeria evidence. Do not invent facts; mark weak evidence Low. Viability dimension labels exactly: " + viabilityDimensions.join(", ") + ". Rate High, Medium, or Low. Reva criterion keys and maximum points: " + criteria + ". Return JSON only: {\"problem\":\"\", \"solution\":\"\", \"targetCustomer\":\"\", \"goToMarket\":\"\", \"viabilityVerdict\":\"\", \"dimensions\":[{\"dimension\":\"\", \"rating\":\"High|Medium|Low\", \"rationale\":\"\"}], \"criteriaScores\":{\"criterion\":{\"score\":0,\"rationale\":\"Evidence-based rationale\"}}, \"strengths\":[], \"risks\":[], \"recommendation\":\"\", \"differentiator\":\"\"}. This is preliminary AI judgment, not a final investment decision.\\nScout: " + scoutType + "\\nName: " + candidate.ideaName + "\\nSector: " + candidate.sector + "\\nSummary: " + candidate.summary + "\\nSource: " + candidate.articleUrl;
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-    method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt, tools: [{ type: "google_search" }], response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 4500 } }),
-    signal: AbortSignal.timeout(90000),
-  });
-  if (!response.ok) throw new Error("Gemini screening returned HTTP " + response.status + ".");
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt, tools: [{ type: "google_search" }], response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 4500 } }),
+      signal: AbortSignal.timeout(90000),
+    });
+    if (response.ok) break;
+    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    const detail = (await response.text()).slice(0, 300);
+    if (!retryable || attempt === 3) {
+      throw new Error(`Gemini screening returned HTTP ${response.status} after ${attempt + 1} attempt(s). ${detail}`);
+    }
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const delay = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 10000)
+      : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  if (!response?.ok) throw new Error("Gemini screening failed after retrying transient errors.");
   const payload: any = await response.json();
   const text = payload.steps?.find((step: any) => step.type === "model_output")?.content?.filter((part: any) => part.type === "text")?.map((part: any) => part.text || "").join("");
   if (!text) throw new Error("Gemini returned no screening assessment.");
@@ -259,7 +286,7 @@ function portfolioMatch(candidate: { ideaName: string; sector: string; summary: 
   const normalize = (value: unknown) => String(value || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\b(the|and|for|with|from|into|platform|solution|system|app)\b/g, " ").replace(/\s+/g, " ").trim();
   const tokens = (value: string) => new Set(normalize(value).split(" ").filter((word) => word.length > 2));
   const name = normalize(candidate.ideaName);
-  let best: { score: number; id?: string; name?: string; exact: boolean } | null = null;
+  const matches: Array<{ score: number; id?: string; name: string; description: string; status: string; exact: boolean }> = [];
   for (const item of portfolio) {
     const existingName = normalize(item.name);
     if (!existingName) continue;
@@ -268,13 +295,22 @@ function portfolioMatch(candidate: { ideaName: string; sector: string; summary: 
     const right = tokens(String(item.name) + " " + String(item.sector || "") + " " + String(item.description || ""));
     const overlap = [...left].filter((token) => right.has(token)).length;
     const score = exact ? 1 : (left.size + right.size ? 2 * overlap / (left.size + right.size) : 0);
-    if ((exact || score >= 0.38) && (!best || score > best.score)) best = { score, id: typeof item.id === "string" ? item.id : undefined, name: String(item.name), exact };
+    if (exact || score >= 0.38) {
+      matches.push({
+        score,
+        id: typeof item.id === "string" ? item.id : undefined,
+        name: String(item.name).slice(0, 180),
+        description: String(item.description || item.summary || "").slice(0, 1000),
+        status: String(item.status || item.portfolioTab || "Unknown").slice(0, 100),
+        exact,
+      });
+    }
   }
-  return best;
+  return matches.sort((left, right) => right.score - left.score);
 }
 
 export const screenBatch = action({
-  args: { scoutType: v.union(v.literal("emerging_tech"), v.literal("nigeria_policy")), candidates: v.array(scoutCandidate) },
+  args: { scoutType: screeningSourceType, candidates: v.array(scoutCandidate) },
   returns: v.object({ processed: v.number(), errors: v.array(v.string()) }),
   handler: async (ctx, args): Promise<{ processed: number; errors: string[] }> => {
     const identity = await ctx.auth.getUserIdentity();
