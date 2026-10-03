@@ -1,14 +1,15 @@
 "use node";
 
-import { action, internalQuery, env } from "./_generated/server";
+import { action, internalAction, env } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { isApprovedVantaIdentity } from "./access";
 import type { Id } from "./_generated/dataModel";
+import { waitForGeminiSlot } from "./geminiQueue";
+import { parseModelObject } from "./aiValidation";
 
 function safeJson(text: string) {
-  const clean = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  return JSON.parse(clean) as Record<string, any>;
+  return parseModelObject(text) as Record<string, any>;
 }
 
 function getGeminiText(payload: unknown) {
@@ -70,7 +71,7 @@ type BenchmarkArticleSummary = Omit<CrawledBenchmarkArticle, "content"> & {
   relatedInitiatives: string[];
 };
 
-async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmarkArticle[]): Promise<BenchmarkArticleSummary[]> {
+async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmarkArticle[], reserve: () => Promise<void>): Promise<BenchmarkArticleSummary[]> {
   const summaries: BenchmarkArticleSummary[] = [];
   const model = env.GEMINI_BENCHMARK_MODEL || env.GEMINI_MODEL || "gemini-3.1-pro-preview";
   const normalizeUrl = (value: string) => {
@@ -87,6 +88,7 @@ async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmar
     const prompt = `Summarize every supplied crawled article for a Trium/Coronation venture research report. Return a JSON array with exactly one object per input. Copy articleNumber exactly from the input; do not change or omit it. Each object: {"articleNumber":1,"url":"exact input URL","summary":"two or three factual sentences from this article","relatedInitiatives":["named venture initiatives explicitly described in the article"]}. Use an empty array when no initiative is named. Do not infer facts from outside the article, invent metrics, or omit articles.\n\n${batch.map((article, index) => `ARTICLE NUMBER: ${index + 1}\nURL: ${article.url}\nTitle: ${article.title}\nSource: ${article.sourceName}\nText: ${article.content}`).join("\n\n")}`;
     let response: Response | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {
+      await reserve();
       response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": key },
@@ -151,7 +153,7 @@ async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmar
     // not fail an otherwise successful benchmark.
     if (missing.length) {
       if (batch.length === 1) throw new Error(`Gemini did not summarize crawled article ${missing[0].url}.`);
-      const recovered = await summarizeBenchmarkArticles(key, missing);
+      const recovered = await summarizeBenchmarkArticles(key, missing, reserve);
       for (const summary of recovered) summariesByArticle.set(normalizeUrl(summary.url), summary);
     }
     for (const article of batch) {
@@ -215,6 +217,7 @@ export const extractBrief = action({
       text: `Extract one proposed venture idea from the supplied content. Return only JSON with keys: ideaName, sector, description, problem, solution, targetCustomer, monetization. Standardize sector to one of: 'Fintech & Financial Inclusion', 'AgriTech & Supply Chain', 'CleanTech & Energy Software', 'GovTech & Regulatory Tech', 'HealthTech & Life Sciences', 'Commerce, Retail & Logistics', 'InsurTech & Risk Analytics', 'Mobility & Smart Transit'. Use 'Uncategorized' when the evidence is insufficient. Do not add facts absent from the source.\n\nSource content:\n${sourceText.slice(0, 90_000) || "See the attached document."}`,
     });
 
+    await waitForGeminiSlot(ctx);
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
@@ -248,23 +251,16 @@ export const extractBrief = action({
   },
 });
 
-export const runBenchmark = action({
-  args: {
-    ideaName: v.string(),
-    sector: v.string(),
-    description: v.string(),
-    problem: v.optional(v.string()),
-    solution: v.optional(v.string()),
-    targetCustomer: v.optional(v.string()),
-    monetization: v.optional(v.string()),
-    flowType: v.optional(v.string()), // "flow4a_benchmark" | "flow4b_gap_initiatives"
-    documentId: v.optional(v.id("uploadedDocuments")),
-  },
-  returns: v.object({ id: v.id("benchmarks"), report: v.any() }),
-  handler: async (ctx, args): Promise<{ id: Id<"benchmarks">; report: unknown }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
-    const ownerId = identity.subject;
+export const executeBenchmark = internalAction({
+  args: { jobId: v.id("benchmarkJobs") },
+  returns: v.null(),
+  handler: async (ctx, { jobId }) => {
+    const job = await ctx.runQuery(internal.benchmarkJobs.getJobForWorker, { jobId });
+    if (!job || job.status === "completed") return null;
+    const args = job;
+    const ownerId = job.ownerId;
+    try {
+    await ctx.runMutation(internal.benchmarkJobs.updateJob, { jobId, status: "running", progress: "Collecting benchmark sources" });
     const key = env.GEMINI_API_KEY;
     if (!key) throw new Error("Benchmarking is not configured. Set GEMINI_API_KEY in Convex environment variables.");
 
@@ -273,7 +269,8 @@ export const runBenchmark = action({
     const brief = [args.description, args.problem && `Problem: ${args.problem}`, args.solution && `Solution: ${args.solution}`, args.targetCustomer && `Target: ${args.targetCustomer}`, args.monetization && `Monetization: ${args.monetization}`].filter(Boolean).join("\n\n");
 
     const crawl = await ctx.runAction(internal.scouting.collectBenchmarkArticles, {});
-    const sourceArticles = await summarizeBenchmarkArticles(key, crawl.articles);
+    await ctx.runMutation(internal.benchmarkJobs.updateJob, { jobId, status: "running", progress: `Summarizing ${crawl.articles.length} collected articles` });
+    const sourceArticles = await summarizeBenchmarkArticles(key, crawl.articles, () => waitForGeminiSlot(ctx));
     const domains = Array.from(new Set(crawl.articles.flatMap((article) => {
       try { return [new URL(article.url).hostname.replace(/^www\./, "")]; } catch { return []; }
     })));
@@ -413,6 +410,7 @@ Brief: ${brief}`;
     input.unshift({ type: "text", text: prompt });
 
     const model = env.GEMINI_BENCHMARK_MODEL || env.GEMINI_MODEL || "gemini-3.1-pro-preview";
+    await waitForGeminiSlot(ctx);
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
@@ -492,6 +490,8 @@ Brief: ${brief}`;
       sector: String(generated.sector || args.sector || "Fintech & Financial Inclusion"),
       conceptHash: Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([ownerId, args.ideaName, args.sector, args.description, args.flowType])))))
         .map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+      modelVersion: env.GEMINI_BENCHMARK_MODEL || env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+      promptVersion: isFlow4b ? "benchmark-gap-v1" : "benchmark-scorecard-v1",
       description: String(generated.description || brief),
       problem: String(args.problem || generated.problem || ""),
       solution: String(args.solution || generated.solution || ""),
@@ -523,6 +523,12 @@ Brief: ${brief}`;
       ...report,
     });
 
-    return { id, report: { ...report, _id: id, createdAt: Date.now() } };
+    await ctx.runMutation(internal.benchmarkJobs.updateJob, { jobId, status: "completed", progress: "Benchmark report is ready", benchmarkId: id });
+    return null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Benchmark research failed.";
+      await ctx.runMutation(internal.benchmarkJobs.updateJob, { jobId, status: "failed", progress: "Benchmark research failed", error: message.slice(0, 1200) });
+      return null;
+    }
   },
 });

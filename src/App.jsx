@@ -39,6 +39,9 @@ export function App({ vantaEnvironment = "production", canSwitchVantaEnvironment
 
   const {
     benchmarks,
+    benchmarkDraft,
+    benchmarkJobs,
+    saveBenchmarkDraft,
     initiatives,
     emailLogs,
     runBenchmark,
@@ -124,6 +127,9 @@ export function App({ vantaEnvironment = "production", canSwitchVantaEnvironment
               {activeTab === "benchmark" && (
                 <GlobalBenchmark
                   benchmarks={benchmarks}
+                  benchmarkDraft={benchmarkDraft}
+                  benchmarkJobs={benchmarkJobs}
+                  saveBenchmarkDraft={saveBenchmarkDraft}
                   onExtractBrief={extractBrief}
                   onRunBenchmark={runBenchmark}
                   onUploadDocument={uploadDocument}

@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { isApprovedVantaIdentity } from "./access";
+import { waitForGeminiSlot } from "./geminiQueue";
 
 const scoutType = v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"));
 const runScoutType = v.union(v.literal("emerging_tech"), v.literal("nigeria_policy"), v.literal("full_patrol"));
@@ -15,7 +16,7 @@ const sourceDoc = v.object({
   feedUrl: v.optional(v.string()), region: v.string(), tier: v.string(), category: v.string(),
   sector: v.optional(v.string()), industry: v.optional(v.string()), dateAdded: v.optional(v.number()),
   isActive: v.boolean(), lastScrapedAt: v.optional(v.number()), failureCount: v.number(),
-  signOffRevaAdmin: v.boolean(), signOffVantaAdmin: v.boolean(), approvedAt: v.optional(v.number()),
+  signOffRevaAdmin: v.boolean(), signOffVantaAdmin: v.optional(v.boolean()), approvedAt: v.optional(v.number()),
 });
 const runDoc = v.object({
   _id: v.id("scoutRuns"), _creationTime: v.number(), scoutType: runScoutType, trigger: triggerType, status: runStatus,
@@ -288,8 +289,9 @@ export const getOverview = query({
       activeEmergingSources: active.filter((source) => source.tier === "tier_a_emerging" || source.tier === "tier_b_global").length,
       activePolicySources: active.filter((source) => source.tier === "nigeria_regulator" || source.tier === "nigeria_legal").length,
       registeredSources: sources.length,
-      totalFindingsAllTime: (await ctx.db.query("scoutFindings").collect()).length,
-        totalArticlesAllTime: (await ctx.db.query("scoutArticleSessions").withIndex("by_isArchived_processedAt", q => q.eq("isArchived", undefined)).collect()).length,
+      // Dashboard totals are bounded to avoid a full-table scan on every reactive refresh.
+      totalFindingsAllTime: (await ctx.db.query("scoutFindings").withIndex("by_createdAt").take(1000)).length,
+      totalArticlesAllTime: (await ctx.db.query("scoutArticleSessions").withIndex("by_isArchived_processedAt", q => q.eq("isArchived", undefined)).take(1000)).length,
         articlesLastDay: recentArticles.length,
       ideasLastDay: recentIdeas.length,
       geminiConfigured: Boolean(env.GEMINI_API_KEY),
@@ -335,6 +337,7 @@ export const analyzeArticle = action({
     const prompt = `Analyze this public article for a Nigerian venture scouting team. Return only JSON with summary (2-4 factual sentences), potentialIdea (one plausible initiative grounded in the text, or empty string if none), sector (closest canonical sector or Uncategorized), and industry (specific industry grounded in the text, or Uncategorized). Do not invent facts or claim Nigerian fit has been assessed.\n\nTitle: ${article.title}\nSource: ${article.sourceName}\nURL: ${article.url}\nArticle text:\n${articleContent}`;
     let response: Response | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
+      await waitForGeminiSlot(ctx);
       response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
         method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,
@@ -565,10 +568,9 @@ async function executeScout(ctx: ActionCtx, type: ScoutType, trigger: RunTrigger
     let ideasFound = 0;
     if (fresh.length && env.GEMINI_API_KEY) {
       for (let offset = 0; offset < fresh.length; offset += 20) {
-        if (offset > 0) await new Promise(r => setTimeout(r, 4000));
         const batch = fresh.slice(offset, offset + 20);
         try {
-          const analyses = await classifyScoutedArticles(batch, type);
+          const analyses = await classifyScoutedArticles(batch, type, () => waitForGeminiSlot(ctx));
           await ctx.runMutation(internal.scouting.saveArticleAnalyses, {
             articles: analyses.map((analysis) => ({
               urlHash: batch.find((article) => article.url === analysis.articleUrl)!.urlHash,
@@ -794,12 +796,13 @@ type ScoutAnalysis = {
   opportunitySummary: string;
 };
 
-async function classifyScoutedArticles(articles: ScoutArticle[], type: ScoutType): Promise<ScoutAnalysis[]> {
+async function classifyScoutedArticles(articles: ScoutArticle[], type: ScoutType, reserve: () => Promise<void>): Promise<ScoutAnalysis[]> {
   const key = env.GEMINI_API_KEY;
   if (!key || !articles.length) return [];
   const prompt = `Classify every public ${type === "emerging_tech" ? "technology and startup" : "Nigerian regulatory and policy"} article below. Return exactly one JSON array item for each input URL, including articles with no venture opportunity. Each item must contain articleUrl, summary (factual, 2-4 sentences), sector (one of Fintech & Financial Inclusion, AgriTech & Supply Chain, GovTech & Regulatory Tech, CleanTech & Energy Software, HealthTech & Life Sciences, Commerce, Retail & Logistics, InsurTech & Risk Analytics, Mobility & Smart Transit, Enterprise & Emerging Tech, or Uncategorized), industry (specific label grounded in the text, or Uncategorized), ideaName (empty string if no clear opportunity), and opportunitySummary (empty string if no clear opportunity). Never invent policy details, market statistics, companies, or facts.\n\n${articles.map((article, index) => `ARTICLE ${index + 1}\nTitle: ${article.title}\nURL: ${article.url}\nText: ${article.content}`).join("\n\n")}`;
   let response: Response | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
+    await reserve();
     response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt,

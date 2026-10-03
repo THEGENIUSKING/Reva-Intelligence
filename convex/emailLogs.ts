@@ -1,4 +1,4 @@
-import { query, internalMutation } from "./_generated/server";
+import { query, internalMutation, env } from "./_generated/server";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { Resend } from "@convex-dev/resend";
@@ -83,8 +83,10 @@ export const queueScreeningAlert = internalMutation({
   handler: async (ctx, args) => {
     const initiative = await ctx.db.get(args.initiativeId);
     if (!initiative || initiative.ownerId !== args.ownerId) throw new Error("Initiative not found");
-    const from = process.env.RESEND_FROM_EMAIL;
-    if (!process.env.RESEND_API_KEY || !from) throw new Error("Resend is not configured");
+    const previous = await ctx.db.query("emailLogs").withIndex("by_initiativeId", q => q.eq("initiativeId", String(args.initiativeId))).first();
+    if (previous && ["queued", "sent", "delivered"].includes(previous.status)) return previous.messageId || "already-queued";
+    const from = env.RESEND_FROM_EMAIL;
+    if (!env.RESEND_API_KEY || !from) throw new Error("Resend is not configured");
     const emailId = await resend.sendEmail(ctx, {
       from,
       to: args.recipient,

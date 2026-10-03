@@ -59,6 +59,8 @@ export const saveGenerated = internalMutation({
     ideaName: v.string(),
     sector: v.optional(v.string()),
     conceptHash: v.string(),
+    modelVersion: v.optional(v.string()),
+    promptVersion: v.optional(v.string()),
     description: v.string(),
     problem: v.string(),
     solution: v.string(),

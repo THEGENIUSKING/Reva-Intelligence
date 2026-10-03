@@ -463,7 +463,7 @@ export function ContinuousScout({ onNavigate }) {
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                 activeTab === tab.id ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
               }`}>
-                {tab.count}
+                {tab.id === "articles" && tab.count >= 1000 ? "1,000+" : tab.count}
               </span>
             </button>
           ))}

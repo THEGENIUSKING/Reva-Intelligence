@@ -1,4 +1,4 @@
-import { mutation, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { isApprovedVantaIdentity } from "./access";
@@ -27,8 +27,8 @@ export const recordUpload = mutation({
     if (!metadata) throw new Error("Uploaded file was not found");
     if (metadata.size > 10 * 1024 * 1024) throw new Error("Files must be 10 MB or smaller");
     const type = args.contentType.toLowerCase();
-    if (!new Set(["application/pdf", "text/plain"]).has(type)) {
-      throw new Error("Upload a PDF or plain text document");
+    if (!new Set(["application/pdf", "text/plain", "text/markdown", "text/x-markdown", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.presentationml.presentation"]).has(type)) {
+      throw new Error("Upload a PDF, Word, PowerPoint, or plain text document");
     }
     return await ctx.db.insert("uploadedDocuments", {
       ownerId: identity.subject,
@@ -37,6 +37,19 @@ export const recordUpload = mutation({
       contentType: type,
       createdAt: Date.now(),
     });
+  },
+});
+
+export const getDocumentUrl = query({
+  args: { id: v.id("uploadedDocuments") },
+  returns: v.union(v.null(), v.object({ url: v.string(), name: v.string() })),
+  handler: async (ctx, { id }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
+    const doc = await ctx.db.get(id);
+    if (!doc || doc.ownerId !== identity.subject) return null;
+    const url = await ctx.storage.getUrl(doc.storageId);
+    return url ? { url, name: doc.name } : null;
   },
 });
 

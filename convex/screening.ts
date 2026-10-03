@@ -5,9 +5,11 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { isApprovedVantaIdentity } from "./access";
 import type { Id } from "./_generated/dataModel";
+import { waitForGeminiSlot } from "./geminiQueue";
+import { parseModelObject, boundedScore } from "./aiValidation";
 
 function parseModelJson(text: string) {
-  return JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as Record<string, any>;
+  return parseModelObject(text) as Record<string, any>;
 }
 
 export const screenVenture = action({
@@ -24,7 +26,7 @@ export const screenVenture = action({
   handler: async (ctx, args): Promise<{ id: Id<"initiatives">; result: unknown; emailStatus: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isApprovedVantaIdentity(identity)) throw new Error("An approved Trium Vanta account is required");
-    const key = process.env.GEMINI_API_KEY;
+    const key = env.GEMINI_API_KEY;
     if (!key) throw new Error("Screening is not configured. Set GEMINI_API_KEY in Convex environment variables.");
     const hasBrief = [args.description, args.problem, args.solution, args.targetCustomer].some((value) => value.trim());
     if (!hasBrief && !args.documentId) throw new Error("Provide venture details or attach a PDF/TXT brief.");
@@ -49,7 +51,8 @@ Name: ${args.name.trim() || "Unspecified venture"}
 Sector: ${args.sector.trim() || "Unspecified"}
 Brief: ${brief || "See attached file."}`;
     input.unshift({ type: "text", text: prompt });
-    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const model = env.GEMINI_MODEL || "gemini-3.8-flash";
+    await waitForGeminiSlot(ctx);
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
@@ -67,7 +70,7 @@ Brief: ${brief || "See attached file."}`;
     const output = modelOutput?.content?.filter((part: any) => part.type === "text").map((part: any) => part.text || "").join("");
     if (!output) throw new Error("The research provider returned no assessment.");
     const modelResult = parseModelJson(output);
-    const score = Math.max(0, Math.min(100, Number(modelResult.screeningScore) || 0));
+    const score = boundedScore(modelResult.screeningScore);
     const grade = ["A*", "A", "B", "C", "D"].includes(modelResult.grade) ? modelResult.grade : "D";
     const result = {
       ownerId: identity.subject,
@@ -79,10 +82,12 @@ Brief: ${brief || "See attached file."}`;
       targetCustomer: args.targetCustomer.trim() || "Not provided",
       sourceType: "on_demand",
       sourceMarket: "Nigeria",
+      modelVersion: model,
+      promptVersion: "on-demand-screening-v1",
       dedupeVerdict: "NOT_CHECKED",
       dedupeSimilarity: 0,
       viabilityRating: ["High", "Medium", "Low"].includes(modelResult.viabilityRating) ? modelResult.viabilityRating : "Low",
-      viabilityScore: Math.max(0, Math.min(100, Number(modelResult.viabilityScore) || 0)),
+      viabilityScore: boundedScore(modelResult.viabilityScore),
       viabilityVerdict: String(modelResult.viabilityVerdict || "Insufficient evidence for a viability conclusion."),
       viabilityDimensions: Array.isArray(modelResult.dimensions) ? modelResult.dimensions.map((item: any) => ({
         dimension: String(item.dimension || "Unspecified"), rating: String(item.rating || "Unknown"), rationale: String(item.rationale || "No evidence supplied"),
@@ -106,10 +111,10 @@ Brief: ${brief || "See attached file."}`;
     const id: Id<"initiatives"> = await ctx.runMutation(internal.initiatives.saveEvaluatedInitiative, result);
 
     let emailStatus = "not_eligible";
-    const threshold = Number(process.env.DIT_ALERT_THRESHOLD_SCORE || "66");
-    const recipient = process.env.DIT_NOTIFICATION_EMAIL;
+    const threshold = Number(env.DIT_ALERT_THRESHOLD_SCORE || "66");
+    const recipient = env.DIT_NOTIFICATION_EMAIL;
     if (score >= threshold) {
-      if (!recipient || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      if (!recipient || !env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) {
         emailStatus = "not_configured";
       } else {
         const subject = `Reva preliminary screening: ${grade} · ${result.name}`;
@@ -174,13 +179,10 @@ export const processScoutCandidates = internalAction({
     const ownerId = "reva-scout";
     for (const candidate of candidates.slice(0, 20)) {
       try {
-        // Keep one screening action near four requests/minute. Gemini quotas
-        // are shared by all calls from this project, so do not fan these out.
-        if (processed > 0) await new Promise(r => setTimeout(r, 15000));
-          const matches = portfolioAvailable ? portfolioMatch(candidate, portfolio) : [];
+        const matches = portfolioAvailable ? portfolioMatch(candidate, portfolio) : [];
         const match = matches[0] || null;
         const duplicateMatches = matches.filter((item) => item.score >= 0.45);
-        const assessment = await assessCandidate(key, candidate, scoutType);
+        const assessment = await assessCandidate(key, candidate, scoutType, () => waitForGeminiSlot(ctx));
         const rawCriteria = assessment.criteriaScores && typeof assessment.criteriaScores === "object" ? assessment.criteriaScores as Record<string, any> : {};
         const criteriaScores: Record<string, { score: number; maxScore: number; rationale: string }> = {};
         for (const [id, maxScore] of revaCriteria) {
@@ -190,7 +192,7 @@ export const processScoutCandidates = internalAction({
           if (!Number.isFinite(criterionScore) || !rationale) throw new Error(`Gemini returned an incomplete ${id} score.`);
           criteriaScores[id] = { score: Math.max(0, Math.min(maxScore, criterionScore)), maxScore, rationale: rationale.slice(0, 600) };
         }
-        const score = Math.round(Object.values(criteriaScores).reduce((sum, item) => sum + item.score, 0));
+        const score = boundedScore(Object.values(criteriaScores).reduce((sum, item) => sum + item.score, 0));
         const grade = score >= 86 ? "A*" : score >= 76 ? "A" : score >= 66 ? "B" : score >= 57 ? "C" : "D";
         const dimensions = viabilityDimensions.map((dimension) => {
           const item = Array.isArray(assessment.dimensions) ? assessment.dimensions.find((entry: any) => entry?.dimension === dimension) : null;
@@ -206,7 +208,7 @@ export const processScoutCandidates = internalAction({
         const record = {
           ownerId, name: candidate.ideaName, sector: candidate.sector, industry: candidate.industry, description: candidate.summary,
           problem: String(assessment.problem || "Not specified"), solution: String(assessment.solution || candidate.summary), targetCustomer: String(assessment.targetCustomer || "Not specified"),
-          goToMarket: String(assessment.goToMarket || ""), sourceType: scoutType === "emerging_tech" ? "emerging_tech_scout" : scoutType === "nigeria_policy" ? "nigeria_policy_scout" : "benchmark_generated", sourceUrl: candidate.articleUrl, sourceMarket: "Nigeria",
+          goToMarket: String(assessment.goToMarket || ""), sourceType: scoutType === "emerging_tech" ? "emerging_tech_scout" : scoutType === "nigeria_policy" ? "nigeria_policy_scout" : "benchmark_generated", sourceUrl: candidate.articleUrl, screeningKey: new URL(candidate.articleUrl).toString().toLowerCase(), modelVersion: env.GEMINI_MODEL || "gemini-3.8-flash", promptVersion: `scout-assessment-${scoutType}-v1`, sourceMarket: "Nigeria",
           dedupeVerdict: !portfolioAvailable ? "NOT_CHECKED" : duplicateMatches.length ? (match?.exact ? "EXACT_DUPLICATE" : "NEAR_SIMILAR") : "NEW", dedupeSimilarity: match?.score || 0, matchingVantaId: match?.id, matchingVantaName: match?.name,
           ...(portfolioAvailable ? {
             vantaDuplicateFound: duplicateMatches.length > 0,
@@ -256,11 +258,12 @@ export const processScoutCandidates = internalAction({
   },
 });
 
-async function assessCandidate(key: string, candidate: { ideaName: string; sector: string; summary: string; articleUrl: string }, scoutType: string) {
+async function assessCandidate(key: string, candidate: { ideaName: string; sector: string; summary: string; articleUrl: string }, scoutType: string, reserve: () => Promise<void>) {
   const criteria = revaCriteria.map(([id, max]) => id + "=" + max).join(", ");
   const prompt = "Assess this public-source idea for Nigerian market viability and Reva's seven investment criteria. Use Google Search for current Nigeria evidence. Do not invent facts; mark weak evidence Low. Viability dimension labels exactly: " + viabilityDimensions.join(", ") + ". Rate High, Medium, or Low. Reva criterion keys and maximum points: " + criteria + ". Return JSON only: {\"problem\":\"\", \"solution\":\"\", \"targetCustomer\":\"\", \"goToMarket\":\"\", \"viabilityVerdict\":\"\", \"dimensions\":[{\"dimension\":\"\", \"rating\":\"High|Medium|Low\", \"rationale\":\"\"}], \"criteriaScores\":{\"criterion\":{\"score\":0,\"rationale\":\"Evidence-based rationale\"}}, \"strengths\":[], \"risks\":[], \"recommendation\":\"\", \"differentiator\":\"\"}. This is preliminary AI judgment, not a final investment decision.\\nScout: " + scoutType + "\\nName: " + candidate.ideaName + "\\nSector: " + candidate.sector + "\\nSummary: " + candidate.summary + "\\nSource: " + candidate.articleUrl;
   let response: Response | null = null;
   for (let attempt = 0; attempt < 6; attempt++) {
+    await reserve();
     response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({ model: env.GEMINI_MODEL || "gemini-3.8-flash", input: prompt, tools: [{ type: "google_search" }], response_format: { type: "text", mime_type: "application/json" }, generation_config: { thinking_level: "low", max_output_tokens: 4500 } }),

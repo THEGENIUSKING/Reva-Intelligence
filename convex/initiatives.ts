@@ -113,6 +113,9 @@ export const saveEvaluatedInitiative = internalMutation({
 
     sourceType: v.string(),
     sourceUrl: v.optional(v.string()),
+    screeningKey: v.optional(v.string()),
+    modelVersion: v.optional(v.string()),
+    promptVersion: v.optional(v.string()),
     sourceMarket: v.optional(v.string()),
     policyClause: v.optional(v.string()),
 
@@ -157,15 +160,17 @@ export const saveEvaluatedInitiative = internalMutation({
   },
   handler: async (ctx, args) => {
     // Check if duplicate name already exists
-    const existing = await ctx.db
-      .query("initiatives")
-      .withIndex("by_owner_name", (q) => q.eq("ownerId", args.ownerId).eq("name", args.name))
-      .first();
+    const existing = args.screeningKey
+      ? await ctx.db.query("initiatives").withIndex("by_owner_screeningKey", q => q.eq("ownerId", args.ownerId).eq("screeningKey", args.screeningKey)).first()
+      : await ctx.db.query("initiatives").withIndex("by_owner_name", q => q.eq("ownerId", args.ownerId).eq("name", args.name)).first();
 
     const now = Date.now();
     if (existing) {
       await ctx.db.patch(existing._id, {
         ...args,
+        emailDispatched: existing.emailDispatched || args.emailDispatched,
+        emailDispatchedAt: existing.emailDispatchedAt,
+        emailRecipient: existing.emailRecipient,
         createdAt: now,
       });
       return existing._id;

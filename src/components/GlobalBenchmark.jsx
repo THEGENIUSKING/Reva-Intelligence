@@ -1,6 +1,6 @@
 import { PageLoader } from "./Loader";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { extractLocalDocumentText, extractBriefLocally } from "../utils/documentExtractor";
 import { normalizeSector, CANONICAL_SECTORS } from "./Dashboard";
@@ -163,7 +163,7 @@ function CrawledArticleEvidence({ report }) {
   );
 }
 
-export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, onUploadDocument }) {
+export function GlobalBenchmark({ benchmarks, benchmarkDraft, benchmarkJobs, saveBenchmarkDraft, onExtractBrief, onRunBenchmark, onUploadDocument }) {
   const hasLoadedBenchmarks = benchmarks !== undefined;
   const savedBenchmarks = benchmarks ?? [];
   const [activeFlow, setActiveFlow] = useState("flow4a_benchmark"); // 'flow4a_benchmark' | 'flow4b_gap_initiatives'
@@ -171,22 +171,66 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
   const [inputText, setInputText] = useState("");
   const [brief, setBrief] = useState(blankBrief);
   const [fileName, setFileName] = useState("");
+  const [documentId, setDocumentId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [selectedId, setSelectedId] = useState("");
+  const [selectedJobId, setSelectedJobId] = useState(null);
   const [localReport, setLocalReport] = useState(null);
   const [copiedKey, setCopiedKey] = useState(null);
   const [screeningIdeas, setScreeningIdeas] = useState(false);
   const [screeningNotice, setScreeningNotice] = useState("");
   const [screeningError, setScreeningError] = useState("");
   const fileInput = useRef(null);
+  const hydrated = useRef(false);
   const screenBatch = useAction(api.screening.screenBatch);
+  const activeJob = useQuery(api.benchmarkJobs.getMyJob, selectedJobId ? { jobId: selectedJobId } : "skip");
+  const attachedDocument = useQuery(api.files.getDocumentUrl, (documentId || activeJob?.documentId) ? { id: documentId || activeJob.documentId } : "skip");
+
+  useEffect(() => {
+    if (benchmarkDraft === undefined || hydrated.current) return;
+    hydrated.current = true;
+    if (!benchmarkDraft) return;
+    setBrief(benchmarkDraft.brief);
+    setInputText(benchmarkDraft.inputText);
+    setActiveFlow(benchmarkDraft.flowType);
+    setStep(benchmarkDraft.step);
+    setDocumentId(benchmarkDraft.documentId || null);
+    setSelectedJobId(benchmarkDraft.jobId || null);
+    setFileName(benchmarkDraft.fileName || "");
+  }, [benchmarkDraft]);
+
+  useEffect(() => {
+    if (!selectedJobId && benchmarkJobs?.length) {
+      const latest = benchmarkJobs.find((job) => job.status === "queued" || job.status === "running");
+      if (latest) setSelectedJobId(latest._id);
+    }
+  }, [benchmarkJobs, selectedJobId]);
+
+  useEffect(() => {
+    if (activeJob?.status === "completed" && activeJob.report) {
+      setSelectedId(activeJob.benchmarkId);
+      setStep(3);
+      setRunning(false);
+    } else if (activeJob?.status === "failed") {
+      setError(activeJob.error || "Benchmark research failed.");
+      setRunning(false);
+    } else if (activeJob?.status === "queued" || activeJob?.status === "running") setRunning(true);
+  }, [activeJob]);
+
+  useEffect(() => {
+    if (!hydrated.current || !saveBenchmarkDraft) return;
+    const timer = setTimeout(() => saveBenchmarkDraft({
+      updatedAt: Date.now(), flowType: activeFlow, inputText, brief, step, documentId: documentId || undefined, jobId: selectedJobId || undefined, fileName: fileName || undefined,
+    }).catch((err) => console.warn("Could not save benchmark draft", err)), 350);
+    return () => clearTimeout(timer);
+  }, [activeFlow, inputText, brief, step, documentId, selectedJobId, fileName, saveBenchmarkDraft]);
 
   const selectedReport = useMemo(
-    () => localReport || savedBenchmarks.find((report) => report._id === selectedId) || null,
-    [savedBenchmarks, localReport, selectedId],
+    () => activeJob?.report || localReport || savedBenchmarks.find((report) => report._id === selectedId) || null,
+    [savedBenchmarks, localReport, selectedId, activeJob],
   );
 
   const updateBrief = (field, value) => setBrief((current) => ({ ...current, [field]: value }));
@@ -199,6 +243,7 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
     setInfoMessage("");
     setUploading(true);
     setFileName(file.name);
+    setDocumentId(null);
 
     try {
       if (file.size > 10 * 1024 * 1024) {
@@ -206,6 +251,12 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
       }
       let rawText = "";
       const extension = file.name.split(".").pop()?.toLowerCase();
+      if (!onUploadDocument) throw new Error("Document storage is not available.");
+      const uploadedDocumentId = await onUploadDocument(file);
+      setDocumentId(uploadedDocumentId);
+      await saveBenchmarkDraft?.({
+        updatedAt: Date.now(), flowType: activeFlow, inputText, brief, step, documentId: uploadedDocumentId, fileName: file.name,
+      });
 
       // 1. Extract raw text locally first (works for PDF, DOCX, PPTX, TXT, MD)
       try {
@@ -219,9 +270,8 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
       // 2. Attempt remote Gemini extraction via Convex if available
       if (onExtractBrief) {
         try {
-          if (extension === "pdf" && onUploadDocument) {
-            const documentId = await onUploadDocument(file);
-            extracted = await onExtractBrief({ text: inputText.trim() || undefined, documentId });
+          if (extension === "pdf") {
+            extracted = await onExtractBrief({ text: inputText.trim() || undefined, documentId: uploadedDocumentId });
           } else if (rawText) {
             extracted = await onExtractBrief({ text: [inputText.trim(), rawText].filter(Boolean).join("\n\n") });
           }
@@ -242,7 +292,6 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
       setBrief({ ...blankBrief, ...extracted });
       setStep(2);
     } catch (err) {
-      setFileName("");
       setError(err instanceof Error ? err.message : "Could not process this document. Please enter idea text directly.");
     } finally {
       setUploading(false);
@@ -304,6 +353,8 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
             ideaName: brief.ideaName.trim(),
             sector: normalizeSector(brief.sector),
             flowType: activeFlow,
+            documentId: documentId || undefined,
+            fileName: fileName || undefined,
           });
         } catch (convexErr) {
           console.error("Convex research action failed:", convexErr);
@@ -311,13 +362,14 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
         }
       }
 
-      if (result?.report) {
-        setLocalReport(result.report);
-        setSelectedId(result.id);
-        setStep(3);
+      if (result) {
+        setSelectedJobId(result);
+        await saveBenchmarkDraft?.({ updatedAt: Date.now(), flowType: activeFlow, inputText, brief, step, documentId: documentId || undefined, jobId: result, fileName: fileName || undefined });
+        setRunning(true);
+        setInfoMessage("Benchmark queued. You can leave this page; Reva will keep the run and uploaded file reference.");
         return;
       }
-      throw new Error("Benchmark research returned no report. Check the Gemini configuration and try again.");
+      throw new Error("Benchmark could not be queued. Check your connection and try again.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Benchmark research failed.");
     } finally {
@@ -553,8 +605,9 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
               </p>
             </div>
             {fileName && (
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+              <span className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
                 Source: {fileName}
+                {attachedDocument?.url && <a href={attachedDocument.url} target="_blank" rel="noreferrer" className="underline">Open stored file</a>}
               </span>
             )}
           </div>
@@ -669,6 +722,13 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
         </div>
       )}
 
+      {(activeJob?.status === "queued" || activeJob?.status === "running") && (
+        <div role="status" className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-on-surface">
+          <strong>Benchmark {activeJob.status}.</strong> {activeJob.progress}. You can navigate away and return; this run and its attachment are saved.
+          {activeJob.documentId && attachedDocument?.url && <a className="ml-2 font-semibold text-primary underline" href={attachedDocument.url} target="_blank" rel="noreferrer">Open {activeJob.documentName || "uploaded file"}</a>}
+        </div>
+      )}
+
       {/* STEP 3: Results Display */}
       {step === 3 && selectedReport && (
         <div className="space-y-5">
@@ -683,6 +743,7 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {attachedDocument?.url && <a href={attachedDocument.url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5 text-xs font-semibold text-primary">Open {attachedDocument.name}</a>}
               <button
                 type="button"
                 onClick={() => exportReport("pdf")}
@@ -706,6 +767,8 @@ export function GlobalBenchmark({ benchmarks, onExtractBrief, onRunBenchmark, on
                   setBrief(blankBrief);
                   setInputText("");
                   setFileName("");
+                  setDocumentId(null);
+                  setSelectedJobId(null);
                   setLocalReport(null);
                   setError("");
                   setInfoMessage("");

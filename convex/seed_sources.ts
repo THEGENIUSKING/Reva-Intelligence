@@ -28,7 +28,6 @@ export const seed = internalMutation(async (ctx) => {
         ...src,
         isActive: true,
         signOffRevaAdmin: true,
-        signOffVantaAdmin: true,
         failureCount: 0,
         dateAdded: Date.now()
       });

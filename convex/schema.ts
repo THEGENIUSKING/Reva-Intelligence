@@ -8,6 +8,8 @@ export default defineSchema({
     ideaName:        v.string(),
     sector:          v.optional(v.string()),
     conceptHash:     v.string(),
+    modelVersion:    v.optional(v.string()),
+    promptVersion:   v.optional(v.string()),
     description:     v.string(),
     problem:         v.string(),
     solution:        v.string(),
@@ -113,6 +115,9 @@ export default defineSchema({
     // Provenance & Source
     sourceType:   v.string(), // "on_demand" | "emerging_tech_scout" | "nigeria_policy_scout"
     sourceUrl:    v.optional(v.string()),
+    screeningKey: v.optional(v.string()),
+    modelVersion: v.optional(v.string()),
+    promptVersion: v.optional(v.string()),
     sourceMarket: v.optional(v.string()),
     policyClause: v.optional(v.string()), // For 2c regulatory catalyst
 
@@ -161,6 +166,7 @@ export default defineSchema({
   })
     .index("by_name",       ["name"])
     .index("by_owner_name", ["ownerId", "name"])
+    .index("by_owner_screeningKey", ["ownerId", "screeningKey"])
     .index("by_status",     ["status"])
     .index("by_sourceType", ["sourceType"])
     .index("by_vantaGrade", ["vantaGrade"])
@@ -224,9 +230,9 @@ export default defineSchema({
     lastScrapedAt: v.optional(v.number()),
     failureCount:  v.number(),
 
-    // Dual Admin Sign-off Tracking
+    // Legacy Vanta flag remains optional so existing source records stay valid.
     signOffRevaAdmin:  v.boolean(),
-    signOffVantaAdmin: v.boolean(),
+    signOffVantaAdmin: v.optional(v.boolean()),
     approvedAt:        v.optional(v.number()),
   })
     .index("by_tier",     ["tier"])
@@ -313,7 +319,8 @@ export default defineSchema({
     .index("by_recipient",    ["recipient"])
     .index("by_dispatchedAt", ["dispatchedAt"])
     .index("by_owner_dispatchedAt", ["ownerId", "dispatchedAt"])
-    .index("by_messageId", ["messageId"]),
+    .index("by_messageId", ["messageId"])
+    .index("by_initiativeId", ["initiativeId"]),
 
   uploadedDocuments: defineTable({
     ownerId: v.string(),
@@ -322,4 +329,30 @@ export default defineSchema({
     contentType: v.string(),
     createdAt: v.number(),
   }).index("by_owner_createdAt", ["ownerId", "createdAt"]),
+
+  benchmarkDrafts: defineTable({
+    ownerId: v.string(),
+    updatedAt: v.number(),
+    flowType: v.string(),
+    inputText: v.string(),
+    brief: v.object({ ideaName: v.string(), sector: v.string(), description: v.string(), problem: v.string(), solution: v.string(), targetCustomer: v.string(), monetization: v.string() }),
+    step: v.number(),
+    documentId: v.optional(v.id("uploadedDocuments")),
+    jobId: v.optional(v.id("benchmarkJobs")),
+    fileName: v.optional(v.string()),
+  }).index("by_owner", ["ownerId"]),
+
+  benchmarkJobs: defineTable({
+    ownerId: v.string(),
+    status: v.union(v.literal("queued"), v.literal("running"), v.literal("completed"), v.literal("failed")),
+    progress: v.string(),
+    ideaName: v.string(), sector: v.string(), description: v.string(), problem: v.string(), solution: v.string(), targetCustomer: v.string(), monetization: v.string(),
+    flowType: v.string(), documentId: v.optional(v.id("uploadedDocuments")), fileName: v.optional(v.string()),
+    benchmarkId: v.optional(v.id("benchmarks")), error: v.optional(v.string()),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_owner_createdAt", ["ownerId", "createdAt"]),
+
+  geminiQueue: defineTable({ key: v.string(), nextSlotAt: v.number() }).index("by_key", ["key"]),
+
+  analyticsCounters: defineTable({ key: v.string(), value: v.number() }).index("by_key", ["key"]),
 });

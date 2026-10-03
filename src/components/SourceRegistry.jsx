@@ -367,7 +367,7 @@ export function SourceRegistry() {
                 <th className="p-2.5">Sector / Industry</th>
                 <th className="p-2.5">Date Added</th>
                 <th className="p-2.5 text-center">Reva Admin</th>
-                <th className="p-2.5 text-center">Vanta State</th>
+                <th className="p-2.5 text-center">Approval</th>
                 <th className="p-2.5 text-center">Rotation Status</th>
               </tr>
             </thead>
@@ -424,7 +424,7 @@ export function SourceRegistry() {
                       </td>
 
                       <td className="p-2.5 text-center">
-                        <span className="text-[10px] text-secondary">{src.signOffVantaAdmin ? "Mirrored" : "Not approved"}</span>
+                        <span className="text-[10px] text-secondary">{src.signOffRevaAdmin ? "Approved by Reva" : "Awaiting Reva"}</span>
                       </td>
 
                       <td className="p-2.5 text-center">

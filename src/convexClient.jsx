@@ -11,7 +11,10 @@ export function useRevaData(enabled = true) {
   const emailLogs = useQuery(api.emailLogs.listLogs, canLoadData ? {} : "skip");
   const scoutOverview = useQuery(api.scouting.getOverview, canLoadData ? { now } : "skip");
   const scoutFindings = useQuery(api.scouting.listRecentFindings, canLoadData ? { limit: 100 } : "skip");
-  const runBenchmark = useAction(api.benchmarking.runBenchmark);
+  const runBenchmark = useMutation(api.benchmarkJobs.startBenchmark);
+  const benchmarkDraft = useQuery(api.benchmarkJobs.getDraft, canLoadData ? {} : "skip");
+  const benchmarkJobs = useQuery(api.benchmarkJobs.listMyJobs, canLoadData ? {} : "skip");
+  const saveBenchmarkDraft = useMutation(api.benchmarkJobs.saveDraft);
   const extractBrief = useAction(api.benchmarking.extractBrief);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const recordUpload = useMutation(api.files.recordUpload);
@@ -35,6 +38,9 @@ export function useRevaData(enabled = true) {
   return {
     isLiveConvex: true,
     benchmarks: benchmarks,
+    benchmarkDraft,
+    benchmarkJobs,
+    saveBenchmarkDraft,
     initiatives: initiatives,
     emailLogs: emailLogs,
     scoutOverview,

@@ -90,8 +90,6 @@ export const signOffSource = internalMutation({
 
     const patchData = {
       signOffRevaAdmin: args.approved,
-      // Kept true for compatibility with source rows created under the old dual-approval model.
-      signOffVantaAdmin: args.approved,
       isActive: args.approved,
       approvedAt: args.approved ? Date.now() : undefined,
     };
@@ -142,7 +140,6 @@ export const addSource = mutation({
       lastScrapedAt: undefined,
       failureCount: 0,
       signOffRevaAdmin: false,
-      signOffVantaAdmin: false,
     });
   },
 });
@@ -188,7 +185,6 @@ export const importCuratedSources = mutation({
         dateAdded: Date.now(),
         failureCount: 0,
         signOffRevaAdmin: false,
-        signOffVantaAdmin: false,
       });
       added++;
     }
@@ -211,7 +207,7 @@ export const approveSource = mutation({
 
     const source = await ctx.db.get(args.id);
     if (!source) throw new Error("Source not found");
-    const patchData = { signOffRevaAdmin: args.approved, signOffVantaAdmin: args.approved };
+    const patchData = { signOffRevaAdmin: args.approved };
     await ctx.db.patch(args.id, {
       ...patchData,
       isActive: args.approved,
@@ -287,7 +283,6 @@ export const seed = internalMutation(async (ctx) => {
         ...src,
         isActive: true,
         signOffRevaAdmin: true,
-        signOffVantaAdmin: true,
         failureCount: 0,
         dateAdded: Date.now()
       });

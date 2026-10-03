@@ -11,10 +11,12 @@
 import type * as access from "../access.js";
 import type * as automations from "../automations.js";
 import type * as benchmarking from "../benchmarking.js";
+import type * as benchmarkJobs from "../benchmarkJobs.js";
 import type * as benchmarks from "../benchmarks.js";
 import type * as crons from "../crons.js";
 import type * as emailLogs from "../emailLogs.js";
 import type * as files from "../files.js";
+import type * as geminiQueue from "../geminiQueue.js";
 import type * as http from "../http.js";
 import type * as initiatives from "../initiatives.js";
 import type * as scouting from "../scouting.js";
@@ -34,10 +36,12 @@ declare const fullApi: ApiFromModules<{
   access: typeof access;
   automations: typeof automations;
   benchmarking: typeof benchmarking;
+  benchmarkJobs: typeof benchmarkJobs;
   benchmarks: typeof benchmarks;
   crons: typeof crons;
   emailLogs: typeof emailLogs;
   files: typeof files;
+  geminiQueue: typeof geminiQueue;
   http: typeof http;
   initiatives: typeof initiatives;
   scouting: typeof scouting;
