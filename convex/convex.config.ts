@@ -14,6 +14,7 @@ const app = defineApp({
     REVA_ADMIN_EMAIL: v.optional(v.string()),
     VANTA_ADMIN_EMAIL: v.optional(v.string()),
     GEMINI_MODEL: v.optional(v.string()),
+    GEMINI_BENCHMARK_MODEL: v.optional(v.string()),
     DIT_NOTIFICATION_EMAIL: v.optional(v.string()),
     DIT_ALERT_THRESHOLD_SCORE: v.optional(v.string()),
   },

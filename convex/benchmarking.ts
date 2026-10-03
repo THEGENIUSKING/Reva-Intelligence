@@ -72,19 +72,29 @@ type BenchmarkArticleSummary = Omit<CrawledBenchmarkArticle, "content"> & {
 
 async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmarkArticle[]): Promise<BenchmarkArticleSummary[]> {
   const summaries: BenchmarkArticleSummary[] = [];
-  for (let offset = 0; offset < articles.length; offset += 25) {
-    const batch = articles.slice(offset, offset + 25);
-    const prompt = `Summarize every supplied crawled article for a Trium/Coronation venture research report. Return a JSON array with exactly one object for each input URL: {"url":"exact input URL","summary":"two or three factual sentences from this article","relatedInitiatives":["named venture initiatives explicitly described in the article"]}. Use an empty array when the article names no initiative. Do not infer facts from outside the article, invent metrics, or omit articles.\n\n${batch.map((article, index) => `ARTICLE ${index + 1}\nURL: ${article.url}\nTitle: ${article.title}\nSource: ${article.sourceName}\nText: ${article.content}`).join("\n\n")}`;
+  const model = env.GEMINI_BENCHMARK_MODEL || env.GEMINI_MODEL || "gemini-3.1-pro-preview";
+  const normalizeUrl = (value: string) => {
+    try {
+      const url = new URL(value);
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return value.trim();
+    }
+  };
+  for (let offset = 0; offset < articles.length; offset += 5) {
+    const batch = articles.slice(offset, offset + 5);
+    const prompt = `Summarize every supplied crawled article for a Trium/Coronation venture research report. Return a JSON array with exactly one object per input. Copy articleNumber exactly from the input; do not change or omit it. Each object: {"articleNumber":1,"url":"exact input URL","summary":"two or three factual sentences from this article","relatedInitiatives":["named venture initiatives explicitly described in the article"]}. Use an empty array when no initiative is named. Do not infer facts from outside the article, invent metrics, or omit articles.\n\n${batch.map((article, index) => `ARTICLE NUMBER: ${index + 1}\nURL: ${article.url}\nTitle: ${article.title}\nSource: ${article.sourceName}\nText: ${article.content}`).join("\n\n")}`;
     let response: Response | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
-          model: env.GEMINI_MODEL || "gemini-3.8-flash",
+          model,
           input: prompt,
           response_format: { type: "text", mime_type: "application/json" },
-          generation_config: { thinking_level: "low", max_output_tokens: 5000 },
+          generation_config: { thinking_level: "medium", max_output_tokens: 5000 },
         }),
         signal: AbortSignal.timeout(90000),
       });
@@ -93,7 +103,11 @@ async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmar
       const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
       if (!retryable || attempt === 3) throw new Error(`Gemini article summary returned HTTP ${response.status} after ${attempt + 1} attempt(s). ${detail}`);
       const retryAfter = Number(response.headers.get("retry-after"));
-      const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(Math.max(retryAfter * 1000, 1000), 120000)
+        : response.status === 429
+          ? Math.min(15000 * (2 ** attempt) + Math.random() * 1000, 120000)
+          : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
     if (!response?.ok) throw new Error("Gemini article summarization failed after retrying transient errors.");
@@ -103,17 +117,27 @@ async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmar
     const parsed: unknown = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
     if (!Array.isArray(parsed)) throw new Error("Gemini returned an invalid article summary list.");
     const byUrl = new Map<string, { summary: string; relatedInitiatives: string[] }>();
+    const byNumber = new Map<number, { summary: string; relatedInitiatives: string[] }>();
     for (const item of parsed) {
-      if (!item || typeof item !== "object" || !("url" in item) || typeof item.url !== "string" || !("summary" in item) || typeof item.summary !== "string") continue;
+      if (!item || typeof item !== "object" || !("summary" in item) || typeof item.summary !== "string") continue;
       const names = "relatedInitiatives" in item && Array.isArray(item.relatedInitiatives)
         ? item.relatedInitiatives.filter((name: unknown): name is string => typeof name === "string").map((name: string) => name.slice(0, 160)).slice(0, 8)
         : [];
-      byUrl.set(item.url, { summary: item.summary.slice(0, 1200), relatedInitiatives: names });
+      const record = { summary: item.summary.slice(0, 1200), relatedInitiatives: names };
+      if ("url" in item && typeof item.url === "string") byUrl.set(normalizeUrl(item.url), record);
+      if ("articleNumber" in item && typeof item.articleNumber === "number" && Number.isInteger(item.articleNumber)) {
+        byNumber.set(item.articleNumber, record);
+      }
     }
-    for (const article of batch) {
-      const summary = byUrl.get(article.url);
-      if (!summary?.summary.trim()) throw new Error(`Gemini did not summarize crawled article ${article.url}.`);
-      summaries.push({
+    const missing: CrawledBenchmarkArticle[] = [];
+    const summariesByArticle = new Map<string, BenchmarkArticleSummary>();
+    for (const [index, article] of batch.entries()) {
+      const summary = byNumber.get(index + 1) || byUrl.get(normalizeUrl(article.url));
+      if (!summary?.summary.trim()) {
+        missing.push(article);
+        continue;
+      }
+      summariesByArticle.set(normalizeUrl(article.url), {
         title: article.title,
         url: article.url,
         sourceName: article.sourceName,
@@ -122,6 +146,18 @@ async function summarizeBenchmarkArticles(key: string, articles: CrawledBenchmar
         ...(article.publishedDate ? { publishedDate: article.publishedDate } : {}),
         ...summary,
       });
+    }
+    // Recover omitted entries individually so one incomplete JSON batch does
+    // not fail an otherwise successful benchmark.
+    if (missing.length) {
+      if (batch.length === 1) throw new Error(`Gemini did not summarize crawled article ${missing[0].url}.`);
+      const recovered = await summarizeBenchmarkArticles(key, missing);
+      for (const summary of recovered) summariesByArticle.set(normalizeUrl(summary.url), summary);
+    }
+    for (const article of batch) {
+      const summary = summariesByArticle.get(normalizeUrl(article.url));
+      if (!summary) throw new Error(`Gemini did not summarize crawled article ${article.url}.`);
+      summaries.push(summary);
     }
   }
   return summaries;
@@ -376,7 +412,7 @@ Brief: ${brief}`;
 
     input.unshift({ type: "text", text: prompt });
 
-    const model = env.GEMINI_MODEL || "gemini-3.8-flash";
+    const model = env.GEMINI_BENCHMARK_MODEL || env.GEMINI_MODEL || "gemini-3.1-pro-preview";
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },

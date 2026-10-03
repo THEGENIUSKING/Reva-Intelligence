@@ -33,6 +33,7 @@ type Env = {
   readonly DIT_ALERT_THRESHOLD_SCORE: string | undefined;
   readonly DIT_NOTIFICATION_EMAIL: string | undefined;
   readonly GEMINI_API_KEY: string | undefined;
+  readonly GEMINI_BENCHMARK_MODEL: string | undefined;
   readonly GEMINI_MODEL: string | undefined;
   readonly RESEND_API_KEY: string | undefined;
   readonly RESEND_FROM_EMAIL: string | undefined;

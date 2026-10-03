@@ -174,7 +174,9 @@ export const processScoutCandidates = internalAction({
     const ownerId = "reva-scout";
     for (const candidate of candidates.slice(0, 20)) {
       try {
-        if (processed > 0) await new Promise(r => setTimeout(r, 3000));
+        // Keep one screening action near four requests/minute. Gemini quotas
+        // are shared by all calls from this project, so do not fan these out.
+        if (processed > 0) await new Promise(r => setTimeout(r, 15000));
           const matches = portfolioAvailable ? portfolioMatch(candidate, portfolio) : [];
         const match = matches[0] || null;
         const duplicateMatches = matches.filter((item) => item.score >= 0.45);
@@ -271,7 +273,11 @@ async function assessCandidate(key: string, candidate: { ideaName: string; secto
       throw new Error(`Gemini screening returned HTTP ${response.status} after ${attempt + 1} attempt(s). ${detail}`);
     }
     const retryAfter = Number(response.headers.get("retry-after"));
-    const delay = response.status === 429 ? 60000 : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
+    const delay = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(Math.max(retryAfter * 1000, 1000), 120000)
+      : response.status === 429
+        ? Math.min(60000 * (2 ** attempt) + Math.random() * 1000, 120000)
+        : Math.min(1000 * (2 ** attempt) + Math.random() * 500, 10000);
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
   if (!response?.ok) throw new Error("Gemini screening failed after retrying transient errors.");
