@@ -9,9 +9,10 @@
  */
 
 import type * as access from "../access.js";
+import type * as aiValidation from "../aiValidation.js";
 import type * as automations from "../automations.js";
-import type * as benchmarking from "../benchmarking.js";
 import type * as benchmarkJobs from "../benchmarkJobs.js";
+import type * as benchmarking from "../benchmarking.js";
 import type * as benchmarks from "../benchmarks.js";
 import type * as crons from "../crons.js";
 import type * as emailLogs from "../emailLogs.js";
@@ -34,9 +35,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  aiValidation: typeof aiValidation;
   automations: typeof automations;
-  benchmarking: typeof benchmarking;
   benchmarkJobs: typeof benchmarkJobs;
+  benchmarking: typeof benchmarking;
   benchmarks: typeof benchmarks;
   crons: typeof crons;
   emailLogs: typeof emailLogs;

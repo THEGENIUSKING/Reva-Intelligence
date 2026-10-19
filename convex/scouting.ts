@@ -284,13 +284,23 @@ export const getOverview = query({
       ctx.db.query("scrapedItems").withIndex("by_processedAt", (q) => q.gte("processedAt", args.now - 24 * 60 * 60 * 1000)).take(1000),
       ctx.db.query("scoutFindings").withIndex("by_createdAt", (q) => q.gte("createdAt", args.now - 24 * 60 * 60 * 1000)).take(500),
     ]);
+    // Count every saved finding in bounded pages so the all-time dashboard total
+    // does not silently stop at the first 1,000 records.
+    let totalFindingsAllTime = 0;
+    let cursor: string | null = null;
+    let isDone = false;
+    while (!isDone) {
+      const findingsPage = await ctx.db.query("scoutFindings").withIndex("by_createdAt").order("desc").paginate({ numItems: 500, cursor });
+      totalFindingsAllTime += findingsPage.page.length;
+      cursor = findingsPage.continueCursor;
+      isDone = findingsPage.isDone;
+    }
     const active = sources.filter((source) => source.isActive);
     return {
       activeEmergingSources: active.filter((source) => source.tier === "tier_a_emerging" || source.tier === "tier_b_global").length,
       activePolicySources: active.filter((source) => source.tier === "nigeria_regulator" || source.tier === "nigeria_legal").length,
       registeredSources: sources.length,
-      // Dashboard totals are bounded to avoid a full-table scan on every reactive refresh.
-      totalFindingsAllTime: (await ctx.db.query("scoutFindings").withIndex("by_createdAt").take(1000)).length,
+      totalFindingsAllTime,
       totalArticlesAllTime: (await ctx.db.query("scoutArticleSessions").withIndex("by_isArchived_processedAt", q => q.eq("isArchived", undefined)).take(1000)).length,
         articlesLastDay: recentArticles.length,
       ideasLastDay: recentIdeas.length,

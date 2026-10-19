@@ -7,7 +7,7 @@ import { ASSESSMENT_GUIDE_CRITERIA } from "./GlobalBenchmark";
 
 export function ContinuousScout({ onNavigate }) {
   const [now, setNow] = useState(() => Date.now());
-  const [activeTab, setActiveTab] = useState("ideas"); // 'emerging' | 'policy' | 'screened' | 'articles'
+  const [activeTab, setActiveTab] = useState("emerging"); // 'emerging' | 'policy' | 'screened' | 'articles'
   const [scoutStatus, setScoutStatus] = useState("Scheduled");
   const [isRunning, setIsRunning] = useState(false);
   const [analyzingId, setAnalyzingId] = useState("");
@@ -392,7 +392,7 @@ export function ContinuousScout({ onNavigate }) {
         </div>
 
         {/* Live Overview Metric Ticker */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3.5 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3.5 text-xs">
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block">MONITORED SOURCES</span>
             <span className="font-headline font-bold text-lg text-on-surface mt-0.5 block">{((overview?.activeEmergingSources || 0) + (overview?.activePolicySources || 0)) || 0} Active Feeds</span>
@@ -405,10 +405,16 @@ export function ContinuousScout({ onNavigate }) {
             <span className="text-[10px] text-secondary">{overview?.geminiConfigured ? "Gemini enabled" : "Gemini not configured"}</span>
           </button>
 
-          <button onClick={() => setActiveTab("ideas")} className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10 text-left hover:bg-surface-low transition-colors w-full">
+          <button onClick={() => setActiveTab("emerging")} className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10 text-left hover:bg-surface-low transition-colors w-full">
             <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block hover:text-primary">IDEAS SURFACED (24H) &rarr;</span>
             <span className="font-headline font-bold text-lg text-emerald-600 mt-0.5 block">{overview?.ideasLastDay ?? 0} Opportunities</span>
             <span className="text-[10px] text-secondary">New AI-derived findings</span>
+          </button>
+
+          <button onClick={() => setActiveTab("emerging")} className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10 text-left hover:bg-surface-low transition-colors w-full">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block hover:text-primary">SIGNALS SURFACED (ALL TIME) &rarr;</span>
+            <span className="font-headline font-bold text-lg text-emerald-700 mt-0.5 block">{overview?.totalFindingsAllTime ?? 0} Signals</span>
+            <span className="text-[10px] text-secondary">All saved emerging-tech and policy signals</span>
           </button>
 
           <div className="p-3 rounded-lg bg-surface-low/80 border border-amber-900/10">
@@ -674,7 +680,7 @@ export function ContinuousScout({ onNavigate }) {
                       {normalizeSector(item.sector)}
                     </span>
                     <span className="text-[11px] text-secondary">
-                      {item.sourceName} (CBN / SEC / NERC / FIRS)
+                      {item.sourceName} · Surfaced {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "date unavailable"}
                     </span>
                   </div>
                   <p className="text-xs text-secondary leading-relaxed max-w-3xl">{item.summary}</p>
@@ -912,6 +918,7 @@ export function ContinuousScout({ onNavigate }) {
       <div className="flex items-center justify-between pt-3 border-t border-amber-900/10 text-xs">
         <span className="text-secondary">
           Showing page <strong>{page}</strong> of <strong>{totalPages}</strong> (10 items per batch)
+          {activeTab === "emerging" || activeTab === "policy" ? <span> · {recentFindings.length} loaded of {overview?.totalFindingsAllTime ?? 0} all-time signals</span> : null}
         </span>
         <div className="flex items-center gap-2">
           <button
@@ -932,6 +939,18 @@ export function ContinuousScout({ onNavigate }) {
           </button>
         </div>
       </div>
+      {(activeTab === "emerging" || activeTab === "policy") && findingsStatus !== "Exhausted" && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            disabled={findingsStatus !== "CanLoadMore"}
+            onClick={() => loadMoreFindings(20)}
+            className="rounded-lg border border-amber-900/15 bg-white px-4 py-2 text-xs font-semibold text-on-surface shadow-xs hover:bg-surface-low disabled:opacity-50"
+          >
+            {findingsStatus === "LoadingMore" ? "Loading older signals..." : `Load more signals (${recentFindings.length} loaded)`}
+          </button>
+        </div>
+      )}
       {activeTab === "articles" && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-low/70 px-3 py-2 text-xs">
           <span className="text-secondary">
