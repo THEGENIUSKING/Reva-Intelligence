@@ -43,6 +43,7 @@ type Env = {
   readonly VANTA_API_KEY: string | undefined;
   readonly VANTA_CONVEX_SITE_URL: string | undefined;
   readonly VANTA_DEV_CONVEX_SITE_URL: string | undefined;
+  readonly VANTA_PROD_CONVEX_SITE_URL: string | undefined;
 };
 
 /**

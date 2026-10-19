@@ -6,6 +6,7 @@ const app = defineApp({
   env: {
     VANTA_CONVEX_SITE_URL: v.optional(v.string()),
     VANTA_DEV_CONVEX_SITE_URL: v.optional(v.string()),
+    VANTA_PROD_CONVEX_SITE_URL: v.optional(v.string()),
     GEMINI_API_KEY: v.optional(v.string()),
     VANTA_API_KEY: v.optional(v.string()),
     VANTA_API_BASE_URL: v.optional(v.string()),
